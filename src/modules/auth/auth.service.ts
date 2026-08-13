@@ -3,7 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import { Prisma } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { BusinessException } from "../../common/exceptions/business.exception";
 import { ErrorCode } from "../../common/constants/error-codes";
 import { PrismaService } from "../../database/prisma.service";
@@ -174,16 +174,11 @@ export class AuthService {
       expiresIn: this.configService.getOrThrow<string>("auth.accessExpiresIn")
     });
 
-    const refreshRecord = await db.refreshToken.create({
-      data: {
-        userId: user.id,
-        tokenHash: "pending",
-        expiresAt: this.getRefreshExpiry()
-      }
-    });
+    // Assign id up front and write the final hash once — avoids unique collisions on "pending".
+    const tokenId = randomUUID();
     const refreshPayload: RefreshTokenPayload = {
       sub: user.id,
-      tokenId: refreshRecord.id,
+      tokenId,
       type: "refresh"
     };
     const refreshToken = await this.jwtService.signAsync(refreshPayload, {
@@ -191,9 +186,13 @@ export class AuthService {
       expiresIn: this.configService.getOrThrow<string>("auth.refreshExpiresIn")
     });
 
-    await db.refreshToken.update({
-      where: { id: refreshRecord.id },
-      data: { tokenHash: this.hashToken(refreshToken) }
+    await db.refreshToken.create({
+      data: {
+        id: tokenId,
+        userId: user.id,
+        tokenHash: this.hashToken(refreshToken),
+        expiresAt: this.getRefreshExpiry()
+      }
     });
 
     return { accessToken, refreshToken };
