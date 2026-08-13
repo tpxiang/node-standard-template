@@ -29,20 +29,32 @@ pnpm prisma migrate dev
 
 ```text
 API: http://localhost:3000
-Swagger: http://localhost:3000/docs
+Swagger: http://localhost:3000/docs（非 production）
 Liveness: http://localhost:3000/health/live
 Readiness: http://localhost:3000/health/ready
 ```
 
 ## 认证接口
 
-| 方法 | 路径            | 说明                            |
-| ---- | --------------- | ------------------------------- |
-| POST | `/auth/login`   | 登录，返回 access/refresh token |
-| POST | `/auth/refresh` | 刷新 token（旋转 + 防重放）     |
-| POST | `/auth/logout`  | 吊销 refresh token              |
+| 方法 | 路径            | 说明                                        |
+| ---- | --------------- | ------------------------------------------- |
+| POST | `/auth/login`   | 登录，返回 access/refresh token             |
+| POST | `/auth/refresh` | 刷新 token（旋转 + 防重放）                 |
+| POST | `/auth/logout`  | 吊销 refresh；若带 Bearer access 则同时拉黑 |
 
 登录失败累计 5 次会触发 Redis 限流（15 分钟），同时接口层有 Throttler 限流。
+
+## 用户与角色
+
+| 方法  | 路径                           | 权限         |
+| ----- | ------------------------------ | ------------ |
+| GET   | `/users`                       | `user:read`  |
+| GET   | `/users/:id`                   | `user:read`  |
+| POST  | `/users`                       | `user:write` |
+| PATCH | `/users/:id`                   | `user:write` |
+| GET   | `/roles`                       | `role:read`  |
+| GET   | `/roles/:id`                   | `role:read`  |
+| POST  | `/roles/:roleId/users/:userId` | `role:write` |
 
 ## 示例账号
 
@@ -51,7 +63,7 @@ Readiness: http://localhost:3000/health/ready
 ```text
 email: admin@example.com
 password: ChangeMe123!
-permissions: user:read, user:write
+permissions: user:read, user:write, role:read, role:write
 ```
 
 生产环境必须修改 seed 密码并通过安全的密钥管理系统注入 JWT Secret。
@@ -74,6 +86,12 @@ pnpm format:check
 pnpm typecheck
 pnpm test
 pnpm build
+```
+
+真实链路 e2e（需本地 Postgres/Redis，且已 migrate + seed）：
+
+```bash
+pnpm test:e2e:flow
 ```
 
 ## 分支说明

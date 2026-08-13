@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req } from "@nestjs/common";
+import { Body, Controller, Headers, Post, Req } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { FastifyRequest } from "fastify";
@@ -24,7 +24,11 @@ export class AuthController {
   }
 
   @Post("logout")
-  logout(@Body() dto: RefreshTokenDto): Promise<unknown> {
-    return this.authService.logout(dto.refreshToken);
+  logout(
+    @Body() dto: RefreshTokenDto,
+    @Headers("authorization") authorization?: string
+  ): Promise<unknown> {
+    const accessToken = authorization?.startsWith("Bearer ") ? authorization.slice(7) : undefined;
+    return this.authService.logout(dto.refreshToken, accessToken);
   }
 }

@@ -5,12 +5,12 @@ import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fa
 import helmet from "@fastify/helmet";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { randomUUID } from "node:crypto";
+import { env } from "node:process";
 import { AppModule } from "./app.module";
 import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
 import { ResponseInterceptor } from "./common/interceptors/response.interceptor";
 
 async function bootstrap(): Promise<void> {
-  // 在 nestjs-pino 就绪前缓存日志，避免启动失败时丢失上下文。
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter(), {
     bufferLogs: true
   });
@@ -40,7 +40,6 @@ async function bootstrap(): Promise<void> {
   app.useGlobalInterceptors(new ResponseInterceptor());
   app.enableShutdownHooks();
 
-  // 统一请求 ID，贯穿响应头、日志、链路追踪和错误响应。
   app
     .getHttpAdapter()
     .getInstance()
@@ -50,14 +49,17 @@ async function bootstrap(): Promise<void> {
       reply.header("x-request-id", requestId);
     });
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle("Enterprise Node Backend")
-    .setDescription("Standard enterprise Node.js backend API")
-    .setVersion(configService.getOrThrow<string>("app.version"))
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup("docs", app, document);
+  const nodeEnv = configService.get<string>("NODE_ENV") ?? env.NODE_ENV ?? "development";
+  if (nodeEnv !== "production") {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle("Enterprise Node Backend")
+      .setDescription("Standard enterprise Node.js backend API")
+      .setVersion(configService.getOrThrow<string>("app.version"))
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup("docs", app, document);
+  }
 
   const port = configService.getOrThrow<number>("app.port");
   await app.listen(port, "0.0.0.0");

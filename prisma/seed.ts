@@ -5,7 +5,9 @@ const prisma = new PrismaClient();
 
 const ADMIN_PERMISSIONS = [
   { code: "user:read", description: "Read users" },
-  { code: "user:write", description: "Create and update users" }
+  { code: "user:write", description: "Create and update users" },
+  { code: "role:read", description: "Read roles" },
+  { code: "role:write", description: "Assign roles" }
 ] as const;
 
 async function main(): Promise<void> {

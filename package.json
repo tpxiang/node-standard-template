@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "vitest run test/e2e",
+    "test:e2e:flow": "RUN_E2E=1 vitest run test/e2e/auth-flow.e2e.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",

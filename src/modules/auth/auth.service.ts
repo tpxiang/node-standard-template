@@ -133,12 +133,34 @@ export class AuthService {
     });
   }
 
-  async logout(refreshToken: string): Promise<{ revoked: boolean }> {
+  async logout(refreshToken: string, accessToken?: string): Promise<{ revoked: boolean }> {
     await this.prisma.refreshToken.updateMany({
       where: { tokenHash: this.hashToken(refreshToken), revokedAt: null },
       data: { revokedAt: new Date() }
     });
+
+    if (accessToken) {
+      await this.blacklistAccessToken(accessToken);
+    }
+
     return { revoked: true };
+  }
+
+  async isAccessTokenBlacklisted(accessToken: string): Promise<boolean> {
+    const value = await this.redis.get(this.accessBlacklistKey(accessToken));
+    return value !== null;
+  }
+
+  private async blacklistAccessToken(accessToken: string): Promise<void> {
+    const decoded = this.jwtService.decode(accessToken) as { exp?: number } | null;
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const ttlSeconds =
+      typeof decoded?.exp === "number" ? Math.max(decoded.exp - nowSeconds, 1) : 15 * 60;
+    await this.redis.set(this.accessBlacklistKey(accessToken), "1", ttlSeconds);
+  }
+
+  private accessBlacklistKey(accessToken: string): string {
+    return `auth:access:blacklist:${this.hashToken(accessToken)}`;
   }
 
   private toAuthUser(user: {

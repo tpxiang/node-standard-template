@@ -1,4 +1,4 @@
-import { plainToInstance } from "class-transformer";
+import { plainToInstance, Type } from "class-transformer";
 import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Min, validateSync } from "class-validator";
 
 class EnvironmentVariables {
@@ -9,6 +9,7 @@ class EnvironmentVariables {
   @IsNotEmpty()
   APP_NAME = "enterprise-node-backend";
 
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   APP_PORT = 3000;
@@ -28,6 +29,7 @@ class EnvironmentVariables {
   @IsNotEmpty()
   REDIS_HOST = "localhost";
 
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   REDIS_PORT = 6379;
@@ -36,6 +38,7 @@ class EnvironmentVariables {
   @IsString()
   REDIS_PASSWORD?: string;
 
+  @Type(() => Number)
   @IsInt()
   @Min(0)
   REDIS_DB = 0;
@@ -64,10 +67,12 @@ class EnvironmentVariables {
   @IsNotEmpty()
   LOG_LEVEL = "info";
 
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   THROTTLE_TTL_SECONDS = 60;
 
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   THROTTLE_LIMIT = 120;

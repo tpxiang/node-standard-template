@@ -20,7 +20,8 @@ describe("AuthService", () => {
 
   const jwtService = {
     signAsync: vi.fn(),
-    verifyAsync: vi.fn()
+    verifyAsync: vi.fn(),
+    decode: vi.fn()
   };
 
   const configService = {
@@ -44,7 +45,8 @@ describe("AuthService", () => {
     incr: vi.fn(),
     expire: vi.fn(),
     ttl: vi.fn(),
-    del: vi.fn()
+    del: vi.fn(),
+    set: vi.fn()
   };
 
   let service: AuthService;
@@ -134,13 +136,22 @@ describe("AuthService", () => {
     );
   });
 
-  it("revokes refresh token on logout", async () => {
+  it("revokes refresh token and blacklists access token on logout", async () => {
     prisma.refreshToken.updateMany.mockResolvedValue({ count: 1 });
+    jwtService.decode.mockReturnValue({ exp: Math.floor(Date.now() / 1000) + 600 });
+    redis.set.mockResolvedValue(undefined);
 
-    await expect(service.logout("refresh-token-value-123456")).resolves.toEqual({
+    await expect(
+      service.logout("refresh-token-value-123456", "access-token-value")
+    ).resolves.toEqual({
       revoked: true
     });
     expect(prisma.refreshToken.updateMany).toHaveBeenCalled();
+    expect(redis.set).toHaveBeenCalledWith(
+      expect.stringContaining("auth:access:blacklist:"),
+      "1",
+      expect.any(Number)
+    );
   });
 
   it("rejects invalid refresh token type", async () => {
