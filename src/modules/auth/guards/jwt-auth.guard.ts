@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import { FastifyRequest } from "fastify";
+import { AuthService } from "../auth.service";
 import { AccessTokenPayload, AuthUser } from "../auth.types";
 
 type AuthenticatedRequest = FastifyRequest & { user: AuthUser };
@@ -10,7 +11,8 @@ type AuthenticatedRequest = FastifyRequest & { user: AuthUser };
 export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly jwtService: JwtService,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
+    private readonly authService: AuthService
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -23,6 +25,10 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     try {
+      if (await this.authService.isAccessTokenBlacklisted(token)) {
+        throw new UnauthorizedException("Authorization token has been revoked");
+      }
+
       const payload = await this.jwtService.verifyAsync<AccessTokenPayload>(token, {
         secret: this.configService.getOrThrow<string>("auth.accessSecret")
       });
@@ -36,7 +42,10 @@ export class JwtAuthGuard implements CanActivate {
         permissions: payload.permissions
       };
       return true;
-    } catch {
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
       throw new UnauthorizedException("Invalid or expired authorization token");
     }
   }
