@@ -1,3 +1,4 @@
+/** 创建用户请求体。 */
 import { IsEmail, IsString, MinLength } from "class-validator";
 
 export class CreateUserDto {

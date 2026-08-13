@@ -1,3 +1,4 @@
+/** 登录请求体。 */
 import { IsEmail, IsString, MinLength } from "class-validator";
 
 export class LoginDto {

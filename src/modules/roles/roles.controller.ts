@@ -1,3 +1,4 @@
+/** 角色接口：列表、详情、给用户分配角色。 */
 import { Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { Permissions } from "../../common/decorators/permissions.decorator";

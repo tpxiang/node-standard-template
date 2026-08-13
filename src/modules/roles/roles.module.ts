@@ -1,3 +1,4 @@
+/** 角色模块。 */
 import { Module } from "@nestjs/common";
 import { AuthModule } from "../auth/auth.module";
 import { RolesController } from "./roles.controller";

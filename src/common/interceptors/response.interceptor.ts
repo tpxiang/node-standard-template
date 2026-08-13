@@ -1,3 +1,7 @@
+/**
+ * 统一成功响应拦截器。
+ * 将控制器返回值包装为 { success, data, requestId, timestamp }。
+ */
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from "@nestjs/common";
 import { FastifyRequest } from "fastify";
 import { map, Observable } from "rxjs";

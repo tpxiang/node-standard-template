@@ -1,3 +1,7 @@
+/**
+ * Redis 封装：懒连接 + 常用 KV/计数操作。
+ * 用于登录失败限流、access token 黑名单、健康检查等。
+ */
 import { Injectable, OnModuleDestroy } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import Redis from "ioredis";
@@ -62,6 +66,7 @@ export class RedisService implements OnModuleDestroy {
     }
   }
 
+  /** 仅在尚未连接时发起 connect，避免重复连接。 */
   private async ensureConnected(): Promise<void> {
     if (this.client.status === "wait") {
       await this.client.connect();

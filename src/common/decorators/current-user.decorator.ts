@@ -1,3 +1,4 @@
+/** 从请求上下文读取当前登录用户（需先经过 JwtAuthGuard）。 */
 import { createParamDecorator } from "@nestjs/common";
 import type { ExecutionContext } from "@nestjs/common";
 import type { FastifyRequest } from "fastify";

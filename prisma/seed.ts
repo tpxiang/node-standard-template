@@ -1,3 +1,7 @@
+/**
+ * 种子数据：初始化管理员账号、admin 角色及基础权限码。
+ * 生产环境务必修改默认密码，并通过密钥系统注入 JWT Secret。
+ */
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 

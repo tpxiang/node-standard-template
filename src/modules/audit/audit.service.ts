@@ -1,3 +1,7 @@
+/**
+ * 审计日志服务：记录关键业务动作（如登录）。
+ * 建议后续按业务扩展 action / resource 约定，便于检索与合规审计。
+ */
 import { Injectable } from "@nestjs/common";
 import { Prisma, AuditLog } from "@prisma/client";
 import { PrismaService } from "../../database/prisma.service";

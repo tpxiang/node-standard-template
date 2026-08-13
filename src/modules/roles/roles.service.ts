@@ -1,3 +1,4 @@
+/** 角色服务：查询角色与给用户赋角色。 */
 import { Injectable } from "@nestjs/common";
 import { Prisma, Role } from "@prisma/client";
 import { BusinessException } from "../../common/exceptions/business.exception";
@@ -37,6 +38,7 @@ export class RolesService {
     return role;
   }
 
+  /** 幂等赋权：已存在的 user-role 关系直接返回。 */
   async assignUser(userId: string, roleId: string): Promise<{ userId: string; roleId: string }> {
     const [user, role] = await Promise.all([
       this.prisma.user.findUnique({ where: { id: userId }, select: { id: true } }),
