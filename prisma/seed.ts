@@ -3,6 +3,11 @@ import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+const ADMIN_PERMISSIONS = [
+  { code: "user:read", description: "Read users" },
+  { code: "user:write", description: "Create and update users" }
+] as const;
+
 async function main(): Promise<void> {
   const passwordHash = await bcrypt.hash("ChangeMe123!", 12);
 
@@ -25,14 +30,30 @@ async function main(): Promise<void> {
     }
   });
 
-  const permission = await prisma.permission.upsert({
-    where: { code: "user:read" },
-    update: {},
-    create: {
-      code: "user:read",
-      description: "Read users"
-    }
-  });
+  for (const item of ADMIN_PERMISSIONS) {
+    const permission = await prisma.permission.upsert({
+      where: { code: item.code },
+      update: { description: item.description },
+      create: {
+        code: item.code,
+        description: item.description
+      }
+    });
+
+    await prisma.rolePermission.upsert({
+      where: {
+        roleId_permissionId: {
+          roleId: adminRole.id,
+          permissionId: permission.id
+        }
+      },
+      update: {},
+      create: {
+        roleId: adminRole.id,
+        permissionId: permission.id
+      }
+    });
+  }
 
   await prisma.userRole.upsert({
     where: {
@@ -47,20 +68,6 @@ async function main(): Promise<void> {
       roleId: adminRole.id
     }
   });
-
-  await prisma.rolePermission.upsert({
-    where: {
-      roleId_permissionId: {
-        roleId: adminRole.id,
-        permissionId: permission.id
-      }
-    },
-    update: {},
-    create: {
-      roleId: adminRole.id,
-      permissionId: permission.id
-    }
-  });
 }
 
 main()
@@ -71,4 +78,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-

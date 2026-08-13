@@ -1,5 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
+import { APP_GUARD } from "@nestjs/core";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { LoggerModule } from "nestjs-pino";
 import { env } from "node:process";
 import { appConfig } from "./config/app.config";
@@ -23,6 +25,12 @@ import { UsersModule } from "./modules/users/users.module";
       load: [appConfig, authConfig, databaseConfig, redisConfig],
       validate: validateEnv
     }),
+    ThrottlerModule.forRoot([
+      {
+        ttl: Number(env.THROTTLE_TTL_SECONDS ?? 60) * 1000,
+        limit: Number(env.THROTTLE_LIMIT ?? 120)
+      }
+    ]),
     LoggerModule.forRoot({
       pinoHttp: {
         level: env.LOG_LEVEL ?? "info",
@@ -49,6 +57,12 @@ import { UsersModule } from "./modules/users/users.module";
     RolesModule,
     UsersModule,
     AuthModule
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard
+    }
   ]
 })
 export class AppModule {}

@@ -22,7 +22,7 @@ class EnvironmentVariables {
   DATABASE_URL!: string;
 
   @IsIn(["postgresql", "mysql"])
-  DATABASE_PROVIDER = "postgresql";
+  DATABASE_PROVIDER = "mysql";
 
   @IsString()
   @IsNotEmpty()
@@ -63,6 +63,14 @@ class EnvironmentVariables {
   @IsString()
   @IsNotEmpty()
   LOG_LEVEL = "info";
+
+  @IsInt()
+  @Min(1)
+  THROTTLE_TTL_SECONDS = 60;
+
+  @IsInt()
+  @Min(1)
+  THROTTLE_LIMIT = 120;
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {
