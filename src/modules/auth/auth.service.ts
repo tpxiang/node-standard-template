@@ -1,3 +1,9 @@
+/**
+ * 认证服务：登录、刷新、登出。
+ * - refresh 采用旋转签发 + 重放检测（已吊销 token 再使用会踢掉全部会话）
+ * - 登录失败计入 Redis，超过阈值返回 429
+ * - logout 可顺带将 access token 写入黑名单直至过期
+ */
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
@@ -14,6 +20,7 @@ import { LoginDto } from "./dto/login.dto";
 
 type DbClient = Prisma.TransactionClient | PrismaService;
 
+/** 查询用户时一并带出角色与权限码，供签发 JWT。 */
 const userAuthInclude = {
   roles: {
     include: {
@@ -28,6 +35,7 @@ const userAuthInclude = {
   }
 } as const;
 
+/** 连续失败次数上限与锁定窗口（秒）。 */
 const LOGIN_FAIL_LIMIT = 5;
 const LOGIN_FAIL_WINDOW_SECONDS = 15 * 60;
 
@@ -49,6 +57,7 @@ export class AuthService {
       include: userAuthInclude
     });
 
+    // 用户不存在、非 ACTIVE、密码错误统一返回同一文案，避免账号枚举。
     if (
       !user ||
       user.status !== "ACTIVE" ||
@@ -103,7 +112,7 @@ export class AuthService {
         throw new BusinessException(ErrorCode.AUTH_TOKEN_INVALID, "Invalid refresh token", 401);
       }
 
-      // 已吊销的 refresh token 被再次使用 → 吊销该用户全部会话。
+      // 已吊销的 refresh token 被再次使用 → 吊销该用户全部会话（防重放）。
       if (stored.revokedAt) {
         await tx.refreshToken.updateMany({
           where: { userId: stored.userId, revokedAt: null },
@@ -124,6 +133,7 @@ export class AuthService {
         throw new BusinessException(ErrorCode.INVALID_CREDENTIALS, "User is not active", 401);
       }
 
+      // 旋转：旧 refresh 立即作废，再签发新的一对 token。
       await tx.refreshToken.update({
         where: { id: stored.id },
         data: { revokedAt: new Date() }
@@ -133,6 +143,9 @@ export class AuthService {
     });
   }
 
+  /**
+   * 登出：吊销 refresh；若请求携带 access，则写入 Redis 黑名单直至 JWT 过期。
+   */
   async logout(refreshToken: string, accessToken?: string): Promise<{ revoked: boolean }> {
     await this.prisma.refreshToken.updateMany({
       where: { tokenHash: this.hashToken(refreshToken), revokedAt: null },
@@ -154,6 +167,7 @@ export class AuthService {
   private async blacklistAccessToken(accessToken: string): Promise<void> {
     const decoded = this.jwtService.decode(accessToken) as { exp?: number } | null;
     const nowSeconds = Math.floor(Date.now() / 1000);
+    // TTL 对齐 access 剩余寿命，过期后自动清理，避免 Redis 无限堆积。
     const ttlSeconds =
       typeof decoded?.exp === "number" ? Math.max(decoded.exp - nowSeconds, 1) : 15 * 60;
     await this.redis.set(this.accessBlacklistKey(accessToken), "1", ttlSeconds);
@@ -196,7 +210,7 @@ export class AuthService {
       expiresIn: this.configService.getOrThrow<string>("auth.accessExpiresIn")
     });
 
-    // Assign id up front and write the final hash once — avoids unique collisions on "pending".
+    // 先生成 tokenId，再一次性写入最终 hash，避免并发下 "pending" 唯一键冲突。
     const tokenId = randomUUID();
     const refreshPayload: RefreshTokenPayload = {
       sub: user.id,
@@ -220,6 +234,7 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
+  /** 仅存 hash，数据库泄露时无法直接还原明文 refresh token。 */
   private hashToken(token: string): string {
     return createHash("sha256").update(token).digest("hex");
   }

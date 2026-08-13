@@ -1,3 +1,6 @@
+/**
+ * 通用分页查询 DTO 与分页结果结构。
+ */
 import { Type } from "class-transformer";
 import { IsInt, IsOptional, IsString, Max, Min } from "class-validator";
 
@@ -15,6 +18,7 @@ export class PaginationDto {
   @Max(100)
   pageSize = 20;
 
+  /** 关键字搜索（具体字段由各业务 service 解释） */
   @IsOptional()
   @IsString()
   keyword?: string;

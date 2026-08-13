@@ -1,3 +1,7 @@
+/**
+ * 权限守卫：读取 @Permissions 元数据，要求当前用户具备全部声明权限码。
+ * 未声明权限的接口默认放行（仍可能受 JwtAuthGuard 约束）。
+ */
 import { CanActivate, ForbiddenException, Injectable } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import type { ExecutionContext } from "@nestjs/common";

@@ -1,3 +1,4 @@
+/** Redis 配置命名空间：redis.* */
 import { registerAs } from "@nestjs/config";
 import { env } from "node:process";
 

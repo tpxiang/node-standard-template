@@ -1,3 +1,7 @@
+/**
+ * 全局异常过滤器：将任意异常转为统一错误响应信封。
+ * 约定字段：success / code / message / requestId / timestamp。
+ */
 import {
   ArgumentsHost,
   Catch,
@@ -30,6 +34,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       exception instanceof HttpException ? exception.getResponse() : undefined;
     const body = this.resolveBody(exceptionResponse);
 
+    // 4xx 多为可预期业务/校验错误；仅 5xx 记录完整异常上下文。
     if (status >= 500) {
       this.logger.error(
         {
@@ -61,6 +66,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     return { code, message };
   }
 
+  /** 将框架默认 HTTP 状态映射为前端可依赖的稳定业务错误码。 */
   private resolveDefaultCode(status: number): ErrorCode {
     if (status === HttpStatus.UNAUTHORIZED) return ErrorCode.AUTH_TOKEN_INVALID;
     if (status === HttpStatus.FORBIDDEN) return ErrorCode.AUTH_FORBIDDEN;

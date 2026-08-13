@@ -1,3 +1,4 @@
+/** 认证模块：导出 AuthService 与守卫，供 Users/Roles 等业务模块复用。 */
 import { Module } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtModule } from "@nestjs/jwt";

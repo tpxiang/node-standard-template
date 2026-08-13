@@ -1,3 +1,7 @@
+/**
+ * 数据库选择提示脚本。
+ * 本仓库用分支隔离双库：main=PostgreSQL，mysql=MySQL，不支持同分支热切换。
+ */
 function main(): void {
   const database = process.argv[2];
 

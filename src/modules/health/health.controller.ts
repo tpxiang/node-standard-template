@@ -1,3 +1,4 @@
+/** 健康检查 HTTP 入口，供 K8s/负载均衡探活。 */
 import { Controller, Get } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { HealthService } from "./health.service";

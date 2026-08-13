@@ -1,3 +1,8 @@
+/**
+ * 启动期环境变量校验。
+ * 校验失败直接阻止应用启动，避免带着错误配置上线。
+ * @Type(() => Number) 确保来自 env 的数字字符串能通过 IsInt。
+ */
 import { plainToInstance, Type } from "class-transformer";
 import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Min, validateSync } from "class-validator";
 
@@ -22,6 +27,7 @@ class EnvironmentVariables {
   @IsNotEmpty()
   DATABASE_URL!: string;
 
+  /** main 默认 postgresql；mysql 分支应改为 mysql */
   @IsIn(["postgresql", "mysql"])
   DATABASE_PROVIDER = "postgresql";
 

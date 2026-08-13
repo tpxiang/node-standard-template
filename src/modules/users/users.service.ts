@@ -1,3 +1,7 @@
+/**
+ * 用户服务：列表 / 详情 / 创建 / 更新。
+ * 对外查询永不返回 passwordHash。
+ */
 import { Injectable } from "@nestjs/common";
 import { UserStatus } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
@@ -8,6 +12,7 @@ import { PrismaService } from "../../database/prisma.service";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 
+/** 对外暴露的用户字段白名单。 */
 const userPublicSelect = {
   id: true,
   email: true,

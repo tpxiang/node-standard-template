@@ -1,3 +1,4 @@
+/** JWT 认证配置命名空间：auth.*（access / refresh 密钥与过期时间）。 */
 import { registerAs } from "@nestjs/config";
 import { env } from "node:process";
 

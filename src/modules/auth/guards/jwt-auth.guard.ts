@@ -1,3 +1,7 @@
+/**
+ * JWT 鉴权守卫：校验 Bearer access token，并检查 Redis 黑名单。
+ * 通过后将 AuthUser 挂到 request.user，供权限守卫与 @CurrentUser 使用。
+ */
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
@@ -32,6 +36,7 @@ export class JwtAuthGuard implements CanActivate {
       const payload = await this.jwtService.verifyAsync<AccessTokenPayload>(token, {
         secret: this.configService.getOrThrow<string>("auth.accessSecret")
       });
+      // 防止误用 refresh token 访问受保护接口。
       if (payload.type !== "access") {
         throw new UnauthorizedException("Invalid token type");
       }

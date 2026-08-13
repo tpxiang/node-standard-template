@@ -1,3 +1,4 @@
+/** 应用基础配置命名空间：app.* */
 import { registerAs } from "@nestjs/config";
 import { env } from "node:process";
 
