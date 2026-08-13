@@ -44,17 +44,23 @@ Readiness: http://localhost:3000/health/ready
 
 登录失败累计 5 次会触发 Redis 限流（15 分钟），同时接口层有 Throttler 限流。
 
+## 接口入参约定
+
+- **GET**：只允许 **Query** 传参，禁止 path / body 业务入参。
+- **增删改**：统一 **POST**，只允许 **Body** 传参，禁止 path / query 业务入参。
+- 健康检查等无业务入参的 GET 除外。
+
 ## 用户与角色
 
-| 方法  | 路径                           | 权限         |
-| ----- | ------------------------------ | ------------ |
-| GET   | `/users`                       | `user:read`  |
-| GET   | `/users/:id`                   | `user:read`  |
-| POST  | `/users`                       | `user:write` |
-| PATCH | `/users/:id`                   | `user:write` |
-| GET   | `/roles`                       | `role:read`  |
-| GET   | `/roles/:id`                   | `role:read`  |
-| POST  | `/roles/:roleId/users/:userId` | `role:write` |
+| 方法 | 路径 | 权限 | 入参 |
+| ---- | ---- | ---- | ---- |
+| GET | `/users/list` | `user:read` | query 分页 |
+| GET | `/users/detail` | `user:read` | query `id` |
+| POST | `/users/create` | `user:write` | body |
+| POST | `/users/update` | `user:write` | body（含 `id`） |
+| GET | `/roles/list` | `role:read` | — |
+| GET | `/roles/detail` | `role:read` | query `id` |
+| POST | `/roles/assign-user` | `role:write` | body `userId`/`roleId` |
 
 ## 示例账号
 

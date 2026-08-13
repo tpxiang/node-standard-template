@@ -57,7 +57,7 @@ describe.runIf(shouldRun)("auth and users flow (e2e)", () => {
     const email = `noperm-${Date.now()}@example.com`;
     const create = await injectJson(app, {
       method: "POST",
-      url: "/users",
+      url: "/users/create",
       headers: { authorization: `Bearer ${accessToken}` },
       payload: {
         email,
@@ -78,7 +78,7 @@ describe.runIf(shouldRun)("auth and users flow (e2e)", () => {
 
     const denied = await injectJson(app, {
       method: "GET",
-      url: "/users",
+      url: "/users/list",
       headers: { authorization: `Bearer ${limitedToken}` }
     });
     expect(denied.statusCode).toBe(403);
@@ -87,7 +87,7 @@ describe.runIf(shouldRun)("auth and users flow (e2e)", () => {
   it("blacklists access token after logout", async () => {
     const allowed = await injectJson(app, {
       method: "GET",
-      url: "/users",
+      url: "/users/list",
       headers: { authorization: `Bearer ${accessToken}` }
     });
     expect(allowed.statusCode).toBe(200);
@@ -102,7 +102,7 @@ describe.runIf(shouldRun)("auth and users flow (e2e)", () => {
 
     const denied = await injectJson(app, {
       method: "GET",
-      url: "/users",
+      url: "/users/list",
       headers: { authorization: `Bearer ${accessToken}` }
     });
     expect(denied.statusCode).toBe(401);

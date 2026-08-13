@@ -96,10 +96,10 @@ export class UsersService {
     });
   }
 
-  async update(id: string, dto: UpdateUserDto): Promise<PublicUser> {
-    await this.findById(id);
+  async update(dto: UpdateUserDto): Promise<PublicUser> {
+    await this.findById(dto.id);
     return this.prisma.user.update({
-      where: { id },
+      where: { id: dto.id },
       data: {
         name: dto.name,
         status: dto.status
