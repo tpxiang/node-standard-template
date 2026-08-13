@@ -49,7 +49,11 @@ Readiness: http://localhost:3000/health/ready
 - 请求上下文（ALS）
 - 统一分页 Query：`page` / `pageSize` / `keyword` / `sortBy` / `sortOrder`
 - 幂等：POST `Idempotency-Key`
-- 分布式锁：`DistributedLockService.withLock`
+- 分布式锁：`DistributedLockService.withLock`（Lua 原子释放，支持 acquire/release/renew）
+- Redis 缓存：`CacheService.get/set/delete/getOrSet`
+- 可靠性工具：`withTimeout` / `withRetry`（默认不重试，避免误重试非幂等操作）
+- 事务工作单元：`UnitOfWorkService.run`
+- 幂等：按用户 + 接口隔离 Key，校验相同 Key 的请求体指纹
 - 定时任务骨架：`HeartbeatJob`（带锁）
 
 ## 接口入参约定
@@ -60,14 +64,14 @@ Readiness: http://localhost:3000/health/ready
 
 ## 用户与角色
 
-| 方法 | 路径 | 权限 | 入参 |
-| ---- | ---- | ---- | ---- |
-| GET | `/users/list` | `user:read` | query 分页 |
-| GET | `/users/detail` | `user:read` | query `id` |
-| POST | `/users/create` | `user:write` | body |
-| POST | `/users/update` | `user:write` | body（含 `id`） |
-| GET | `/roles/list` | `role:read` | query 分页 |
-| GET | `/roles/detail` | `role:read` | query `id` |
+| 方法 | 路径                 | 权限         | 入参                   |
+| ---- | -------------------- | ------------ | ---------------------- |
+| GET  | `/users/list`        | `user:read`  | query 分页             |
+| GET  | `/users/detail`      | `user:read`  | query `id`             |
+| POST | `/users/create`      | `user:write` | body                   |
+| POST | `/users/update`      | `user:write` | body（含 `id`）        |
+| GET  | `/roles/list`        | `role:read`  | query 分页             |
+| GET  | `/roles/detail`      | `role:read`  | query `id`             |
 | POST | `/roles/assign-user` | `role:write` | body `userId`/`roleId` |
 
 ## 示例账号

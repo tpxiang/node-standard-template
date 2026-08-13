@@ -49,6 +49,20 @@ class EnvironmentVariables {
   @Min(0)
   REDIS_DB = 0;
 
+  @IsOptional()
+  @IsString()
+  REDIS_KEY_PREFIX?: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(100)
+  REDIS_CONNECT_TIMEOUT_MS = 2000;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(100)
+  REDIS_COMMAND_TIMEOUT_MS = 2000;
+
   @IsString()
   @IsNotEmpty()
   JWT_ACCESS_SECRET!: string;

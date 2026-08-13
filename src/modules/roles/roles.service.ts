@@ -19,10 +19,7 @@ export class RolesService {
   async list(query: PaginationDto): Promise<PageResult<Role>> {
     const where = query.keyword
       ? {
-          OR: [
-            { name: { contains: query.keyword } },
-            { description: { contains: query.keyword } }
-          ]
+          OR: [{ name: { contains: query.keyword } }, { description: { contains: query.keyword } }]
         }
       : {};
 

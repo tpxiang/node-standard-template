@@ -33,9 +33,9 @@ describe("RolesService", () => {
       userRole: { upsert: vi.fn().mockResolvedValue({}) }
     };
 
-    await expect(
-      new RolesService(prisma as never).assignUser("user-1", "role-1")
-    ).resolves.toEqual({ userId: "user-1", roleId: "role-1" });
+    await expect(new RolesService(prisma as never).assignUser("user-1", "role-1")).resolves.toEqual(
+      { userId: "user-1", roleId: "role-1" }
+    );
   });
 
   it("throws when role is missing", async () => {

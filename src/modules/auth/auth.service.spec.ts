@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BusinessException } from "../../common/exceptions/business.exception";
 import { ErrorCode } from "../../common/constants/error-codes";
 import { AuthService } from "./auth.service";
+import { AuthLoginRateLimitService } from "./auth-login-rate-limit.service";
+import { AuthTokenService } from "./auth-token.service";
 
 describe("AuthService", () => {
   const prisma = {
@@ -59,10 +61,14 @@ describe("AuthService", () => {
     redis.del.mockResolvedValue(undefined);
     service = new AuthService(
       prisma as never,
-      jwtService as never,
-      configService as never,
       auditService as never,
-      redis as never
+      new AuthLoginRateLimitService(redis as never),
+      new AuthTokenService(
+        prisma as never,
+        jwtService as never,
+        configService as never,
+        redis as never
+      )
     );
   });
 

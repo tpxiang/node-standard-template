@@ -47,4 +47,3 @@ spec:
               path: /health/live
               port: 3000
             periodSeconds: 20
-

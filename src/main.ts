@@ -53,7 +53,14 @@ async function bootstrap(): Promise<void> {
       const requestId = request.headers["x-request-id"]?.toString() ?? randomUUID();
       request.headers["x-request-id"] = requestId;
       reply.header("x-request-id", requestId);
-      requestContext.run({ requestId }, () => done());
+      requestContext.run(
+        {
+          requestId,
+          clientIp: request.ip,
+          userAgent: request.headers["user-agent"]
+        },
+        () => done()
+      );
     });
 
   // 生产环境不暴露 Swagger，降低接口面泄露风险。

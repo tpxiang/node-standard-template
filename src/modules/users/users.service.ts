@@ -3,7 +3,7 @@
  * 对外查询永不返回 passwordHash。
  */
 import { Injectable } from "@nestjs/common";
-import { UserStatus } from "@prisma/client";
+import { Prisma, UserStatus } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
 import { BusinessException } from "../../common/exceptions/business.exception";
 import { ErrorCode } from "../../common/constants/error-codes";
@@ -52,8 +52,7 @@ export class UsersService {
         }
       : {};
 
-    const sortBy =
-      query.sortBy && USER_SORT_FIELDS.has(query.sortBy) ? query.sortBy : "createdAt";
+    const sortBy = query.sortBy && USER_SORT_FIELDS.has(query.sortBy) ? query.sortBy : "createdAt";
     const { skip, take } = pageOffset(query);
 
     const [items, total] = await Promise.all([
@@ -88,18 +87,17 @@ export class UsersService {
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
-    return this.prisma.user.create({
-      data: {
-        email: dto.email,
-        name: dto.name,
-        passwordHash
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true
+    try {
+      return await this.prisma.user.create({
+        data: { email: dto.email, name: dto.name, passwordHash },
+        select: { id: true, email: true, name: true }
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw new BusinessException(ErrorCode.USER_ALREADY_EXISTS, "User already exists", 409);
       }
-    });
+      throw error;
+    }
   }
 
   async update(dto: UpdateUserDto): Promise<PublicUser> {
