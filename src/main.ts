@@ -11,8 +11,8 @@ import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { randomUUID } from "node:crypto";
 import { env } from "node:process";
 import { AppModule } from "./app.module";
+import { requestContext } from "./common/context/request-context";
 import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
-import { ResponseInterceptor } from "./common/interceptors/response.interceptor";
 
 async function bootstrap(): Promise<void> {
   // bufferLogs：在 nestjs-pino 就绪前缓存启动日志，避免丢失上下文。
@@ -43,17 +43,17 @@ async function bootstrap(): Promise<void> {
     })
   );
   app.useGlobalFilters(new HttpExceptionFilter());
-  app.useGlobalInterceptors(new ResponseInterceptor());
   app.enableShutdownHooks();
 
-  // 统一请求 ID：贯穿响应头、日志、错误响应与审计。
+  // requestId 写入 ALS，供审计/日志/业务代码无感读取。
   app
     .getHttpAdapter()
     .getInstance()
-    .addHook("onRequest", async (request, reply) => {
+    .addHook("onRequest", (request, reply, done) => {
       const requestId = request.headers["x-request-id"]?.toString() ?? randomUUID();
       request.headers["x-request-id"] = requestId;
       reply.header("x-request-id", requestId);
+      requestContext.run({ requestId }, () => done());
     });
 
   // 生产环境不暴露 Swagger，降低接口面泄露风险。
