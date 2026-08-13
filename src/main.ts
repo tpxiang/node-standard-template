@@ -17,7 +17,10 @@ async function bootstrap(): Promise<void> {
   const configService = app.get(ConfigService);
   const logger = new Logger("Bootstrap");
 
-  await app.register(helmet);
+  await app.register(helmet, {
+    // Swagger UI needs inline scripts/styles; keep Helmet elsewhere.
+    contentSecurityPolicy: false
+  });
 
   const corsOrigins = configService.getOrThrow<string[]>("app.corsOrigins");
   app.enableCors({

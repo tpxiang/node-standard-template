@@ -103,8 +103,7 @@ describe("AuthService", () => {
         }
       ]
     });
-    prisma.refreshToken.create.mockResolvedValue({ id: "rt-1" });
-    prisma.refreshToken.update.mockResolvedValue({});
+    prisma.refreshToken.create.mockResolvedValue({});
     prisma.user.update.mockResolvedValue({});
     jwtService.signAsync
       .mockResolvedValueOnce("access-token")
@@ -120,6 +119,15 @@ describe("AuthService", () => {
       refreshToken: "refresh-token-value-123456"
     });
     expect(result.user.permissions).toContain("user:write");
+    expect(prisma.refreshToken.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: "user-1",
+        tokenHash: expect.any(String),
+        id: expect.any(String)
+      })
+    });
+    expect(prisma.refreshToken.create.mock.calls[0][0].data.tokenHash).not.toBe("pending");
+    expect(prisma.refreshToken.update).not.toHaveBeenCalled();
     expect(redis.del).toHaveBeenCalled();
     expect(auditService.create).toHaveBeenCalledWith(
       expect.objectContaining({ action: "LOGIN", resource: "AUTH" })
