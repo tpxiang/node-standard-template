@@ -7,9 +7,8 @@ data:
   APP_NAME: enterprise-node-backend
   APP_PORT: "3000"
   APP_VERSION: "0.1.0"
-  DATABASE_PROVIDER: postgresql
+  DATABASE_PROVIDER: mysql
   REDIS_HOST: redis
   REDIS_PORT: "6379"
   REDIS_DB: "0"
   LOG_LEVEL: info
-

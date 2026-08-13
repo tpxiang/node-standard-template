@@ -1,6 +1,6 @@
 # Standard Enterprise Node Backend
 
-标准企业级 Node.js API 服务模板，当前主线使用 PostgreSQL。
+标准企业级 Node.js API 服务模板，当前分支使用 MySQL 8。
 
 ## 运行要求
 
@@ -59,12 +59,12 @@ pnpm test
 pnpm build
 ```
 
-## MySQL 分支
+## 分支说明
 
-PostgreSQL 是主线。MySQL 作为独立分支维护：
+当前是 MySQL 兼容分支：
 
 ```bash
-git switch mysql
+git branch --show-current
 ```
 
-MySQL 分支需要独立维护 Prisma provider、migration 和 Docker Compose，并执行数据库兼容性 smoke test。
+MySQL 分支独立维护 Prisma provider、migration 和 Docker Compose。PostgreSQL 主线请切换到 `main`。
