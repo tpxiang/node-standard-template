@@ -10,6 +10,7 @@ import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
 import { ResponseInterceptor } from "./common/interceptors/response.interceptor";
 
 async function bootstrap(): Promise<void> {
+  // 在 nestjs-pino 就绪前缓存日志，避免启动失败时丢失上下文。
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter(), {
     bufferLogs: true
   });
@@ -36,6 +37,7 @@ async function bootstrap(): Promise<void> {
   app.useGlobalInterceptors(new ResponseInterceptor());
   app.enableShutdownHooks();
 
+  // 统一请求 ID，贯穿响应头、日志、链路追踪和错误响应。
   app
     .getHttpAdapter()
     .getInstance()

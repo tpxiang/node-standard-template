@@ -30,6 +30,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       exception instanceof HttpException ? exception.getResponse() : undefined;
     const body = this.resolveBody(exceptionResponse);
 
+    // 客户端错误属于预期分支；服务端错误才记录完整上下文。
     if (status >= 500) {
       this.logger.error(
         {
@@ -61,6 +62,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     return { code, message };
   }
 
+  // 将框架级 HTTP 异常映射为前端可依赖的稳定错误码。
   private resolveDefaultCode(status: number): ErrorCode {
     if (status === HttpStatus.UNAUTHORIZED) return ErrorCode.AUTH_TOKEN_INVALID;
     if (status === HttpStatus.FORBIDDEN) return ErrorCode.AUTH_FORBIDDEN;
