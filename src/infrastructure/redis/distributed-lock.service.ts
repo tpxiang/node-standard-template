@@ -4,22 +4,33 @@ import { BusinessException } from "../../common/exceptions/business.exception";
 import { ErrorCode } from "../../common/constants/error-codes";
 import { RedisService } from "./redis.service";
 
-/**
- * Redis 分布式锁：SET NX + token 校验释放，避免误删他人锁。
- */
+export interface DistributedLockHandle {
+  resource: string;
+  token: string;
+}
+
+/** Redis 分布式锁：SET NX + token 校验释放/续期，避免误删他人锁。 */
 @Injectable()
 export class DistributedLockService {
   constructor(private readonly redis: RedisService) {}
 
-  async withLock<T>(
-    resource: string,
-    ttlSeconds: number,
-    fn: () => Promise<T>
-  ): Promise<T> {
-    const key = `lock:${resource}`;
-    const token = randomUUID();
-    const acquired = await this.redis.setNx(key, token, ttlSeconds);
-    if (!acquired) {
+  async acquire(resource: string, ttlSeconds: number): Promise<DistributedLockHandle | null> {
+    const handle = { resource, token: randomUUID() };
+    const acquired = await this.redis.setNx(this.key(resource), handle.token, ttlSeconds);
+    return acquired ? handle : null;
+  }
+
+  release(handle: DistributedLockHandle): Promise<boolean> {
+    return this.redis.compareAndDelete(this.key(handle.resource), handle.token);
+  }
+
+  renew(handle: DistributedLockHandle, ttlSeconds: number): Promise<boolean> {
+    return this.redis.compareAndExpire(this.key(handle.resource), handle.token, ttlSeconds);
+  }
+
+  async withLock<T>(resource: string, ttlSeconds: number, fn: () => Promise<T>): Promise<T> {
+    const handle = await this.acquire(resource, ttlSeconds);
+    if (!handle) {
       throw new BusinessException(
         ErrorCode.LOCK_NOT_ACQUIRED,
         `Resource is locked: ${resource}`,
@@ -30,14 +41,13 @@ export class DistributedLockService {
     try {
       return await fn();
     } finally {
-      await this.releaseIfOwned(key, token);
+      await this.release(handle);
     }
   }
 
-  private async releaseIfOwned(key: string, token: string): Promise<void> {
-    const current = await this.redis.get(key);
-    if (current === token) {
-      await this.redis.del(key);
-    }
+  private key(resource: string): string {
+    const normalized = resource.trim();
+    if (!normalized) throw new Error("Lock resource cannot be empty");
+    return `lock:${normalized}`;
   }
 }

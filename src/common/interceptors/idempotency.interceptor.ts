@@ -1,25 +1,29 @@
-import {
-  CallHandler,
-  ExecutionContext,
-  Injectable,
-  NestInterceptor
-} from "@nestjs/common";
+import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from "@nestjs/common";
 import { FastifyReply, FastifyRequest } from "fastify";
+import { createHash, randomUUID } from "node:crypto";
 import { Observable, from, of, throwError } from "rxjs";
-import { catchError, switchMap, tap } from "rxjs/operators";
-import { BusinessException } from "../exceptions/business.exception";
+import { catchError, finalize, map, mergeMap } from "rxjs/operators";
+import { getRequestUserId } from "../context/request-context";
 import { ErrorCode } from "../constants/error-codes";
+import { BusinessException } from "../exceptions/business.exception";
 import { RedisService } from "../../infrastructure/redis/redis.service";
 
 const IDEMPOTENCY_HEADER = "idempotency-key";
 const RESULT_TTL_SECONDS = 24 * 60 * 60;
 const LOCK_TTL_SECONDS = 60;
+const MAX_KEY_LENGTH = 256;
+
+interface CachedResult {
+  fingerprint: string;
+  body: unknown;
+}
 
 /**
  * POST 请求若携带 Idempotency-Key：
- * - 命中缓存则直接返回上次成功响应体（已含统一信封）
- * - 并发同 key 返回 409，避免双执行
- * 未带 header 时透传，不强制幂等。
+ * - Key 按用户、接口隔离，避免不同调用方相互污染；
+ * - 相同 Key 搭配不同请求体返回冲突；
+ * - 命中缓存则直接返回上次成功响应体；
+ * - 并发同 Key 返回 409，避免双执行。
  */
 @Injectable()
 export class IdempotencyInterceptor implements NestInterceptor {
@@ -30,27 +34,38 @@ export class IdempotencyInterceptor implements NestInterceptor {
     const request = http.getRequest<FastifyRequest>();
     const reply = http.getResponse<FastifyReply>();
 
-    if (request.method !== "POST") {
-      return next.handle();
-    }
+    if (request.method !== "POST") return next.handle();
 
     const rawKey = request.headers[IDEMPOTENCY_HEADER];
-    const key = Array.isArray(rawKey) ? rawKey[0] : rawKey;
-    if (!key?.trim()) {
-      return next.handle();
+    const key = (Array.isArray(rawKey) ? rawKey[0] : rawKey)?.trim();
+    if (!key) return next.handle();
+    if (key.length > MAX_KEY_LENGTH) {
+      throw new BusinessException(
+        ErrorCode.IDEMPOTENCY_KEY_INVALID,
+        `Idempotency-Key must not exceed ${MAX_KEY_LENGTH} characters`,
+        400
+      );
     }
 
-    const resultKey = `idempotency:result:${key.trim()}`;
-    const lockKey = `idempotency:lock:${key.trim()}`;
+    const scope = this.scopeKey(request, key);
+    const resultKey = `idempotency:result:${scope}`;
+    const lockKey = `idempotency:lock:${scope}`;
+    const fingerprint = this.requestFingerprint(request);
 
     return from(this.redis.get(resultKey)).pipe(
-      switchMap((cached) => {
+      mergeMap((cached) => {
         if (cached) {
-          return of(JSON.parse(cached) as unknown);
+          const parsed = this.parseCachedResult(cached);
+          if (parsed.fingerprint !== fingerprint) {
+            return throwError(() => this.conflict());
+          }
+          void reply.header("idempotency-replay", "true");
+          return of(parsed.body);
         }
 
-        return from(this.redis.setNx(lockKey, "1", LOCK_TTL_SECONDS)).pipe(
-          switchMap((locked) => {
+        const lockToken = randomUUID();
+        return from(this.redis.setNx(lockKey, lockToken, LOCK_TTL_SECONDS)).pipe(
+          mergeMap((locked) => {
             if (!locked) {
               return throwError(
                 () =>
@@ -63,19 +78,64 @@ export class IdempotencyInterceptor implements NestInterceptor {
             }
 
             return next.handle().pipe(
-              tap((body) => {
-                void this.redis.set(resultKey, JSON.stringify(body), RESULT_TTL_SECONDS);
-                void this.redis.del(lockKey);
+              mergeMap((body) =>
+                from(
+                  this.redis.set(
+                    resultKey,
+                    JSON.stringify({ fingerprint, body } satisfies CachedResult),
+                    RESULT_TTL_SECONDS
+                  )
+                ).pipe(map(() => body))
+              ),
+              map((body) => {
                 void reply.header("idempotency-replay", "false");
+                return body;
               }),
-              catchError((error: unknown) => {
-                void this.redis.del(lockKey);
-                return throwError(() => error);
+              catchError((error: unknown) => throwError(() => error)),
+              finalize(() => {
+                void this.redis.compareAndDelete(lockKey, lockToken);
               })
             );
           })
         );
       })
+    );
+  }
+
+  private scopeKey(request: FastifyRequest, key: string): string {
+    const userId = getRequestUserId() ?? "anonymous";
+    return createHash("sha256")
+      .update(`${userId}\n${request.method}\n${request.url}\n${key}`)
+      .digest("hex");
+  }
+
+  private requestFingerprint(request: FastifyRequest): string {
+    return createHash("sha256")
+      .update(JSON.stringify(request.body ?? null))
+      .digest("hex");
+  }
+
+  private parseCachedResult(value: string): CachedResult {
+    try {
+      const parsed = JSON.parse(value) as Partial<CachedResult>;
+      if (typeof parsed.fingerprint !== "string" || !("body" in parsed)) {
+        throw new Error("invalid cached result");
+      }
+      return parsed as CachedResult;
+    } catch {
+      throw new BusinessException(
+        ErrorCode.IDEMPOTENCY_KEY_INVALID,
+        "Stored idempotency result is invalid",
+        409
+      );
+    }
+  }
+
+  private conflict(): BusinessException {
+    return new BusinessException(
+      ErrorCode.IDEMPOTENCY_KEY_CONFLICT,
+      "Idempotency-Key was already used with a different request",
+      409
     );
   }
 }

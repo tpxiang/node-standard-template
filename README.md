@@ -60,14 +60,14 @@ Readiness: http://localhost:3000/health/ready
 
 ## 用户与角色
 
-| 方法 | 路径 | 权限 | 入参 |
-| ---- | ---- | ---- | ---- |
-| GET | `/users/list` | `user:read` | query 分页 |
-| GET | `/users/detail` | `user:read` | query `id` |
-| POST | `/users/create` | `user:write` | body |
-| POST | `/users/update` | `user:write` | body（含 `id`） |
-| GET | `/roles/list` | `role:read` | query 分页 |
-| GET | `/roles/detail` | `role:read` | query `id` |
+| 方法 | 路径                 | 权限         | 入参                   |
+| ---- | -------------------- | ------------ | ---------------------- |
+| GET  | `/users/list`        | `user:read`  | query 分页             |
+| GET  | `/users/detail`      | `user:read`  | query `id`             |
+| POST | `/users/create`      | `user:write` | body                   |
+| POST | `/users/update`      | `user:write` | body（含 `id`）        |
+| GET  | `/roles/list`        | `role:read`  | query 分页             |
+| GET  | `/roles/detail`      | `role:read`  | query `id`             |
 | POST | `/roles/assign-user` | `role:write` | body `userId`/`roleId` |
 
 ## 示例账号

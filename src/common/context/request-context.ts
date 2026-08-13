@@ -4,6 +4,9 @@ import { AsyncLocalStorage } from "node:async_hooks";
 export interface RequestContextStore {
   requestId: string;
   userId?: string;
+  tenantId?: string;
+  clientIp?: string;
+  userAgent?: string;
 }
 
 export const requestContext = new AsyncLocalStorage<RequestContextStore>();
@@ -21,4 +24,17 @@ export function setRequestUserId(userId: string): void {
   if (store) {
     store.userId = userId;
   }
+}
+
+export function setRequestTenantId(tenantId: string): void {
+  const store = requestContext.getStore();
+  if (store) store.tenantId = tenantId;
+}
+
+export function getRequestUserId(): string | undefined {
+  return requestContext.getStore()?.userId;
+}
+
+export function getRequestTenantId(): string | undefined {
+  return requestContext.getStore()?.tenantId;
 }

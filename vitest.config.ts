@@ -9,6 +9,15 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
+      include: [
+        "src/common/interceptors/*.ts",
+        "src/common/reliability/*.ts",
+        "src/infrastructure/cache/*.service.ts",
+        "src/infrastructure/redis/distributed-lock.service.ts",
+        "src/modules/auth/*.service.ts",
+        "src/modules/roles/*.service.ts",
+        "src/modules/users/*.service.ts"
+      ],
       thresholds: {
         lines: 70,
         functions: 70,
@@ -23,4 +32,3 @@ export default defineConfig({
     }
   }
 });
-

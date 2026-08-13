@@ -1,9 +1,10 @@
 /**
- * Redis 封装：懒连接 + KV/计数/分布式锁原语。
+ * Redis 封装：懒连接、KV/计数、缓存和分布式锁原子脚本。
  */
 import { Injectable, OnModuleDestroy } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import Redis from "ioredis";
+import { RELEASE_LOCK_SCRIPT, RENEW_LOCK_SCRIPT } from "./redis.scripts";
 
 @Injectable()
 export class RedisService implements OnModuleDestroy {
@@ -15,6 +16,9 @@ export class RedisService implements OnModuleDestroy {
       port: configService.getOrThrow<number>("redis.port"),
       password: configService.get<string>("redis.password"),
       db: configService.getOrThrow<number>("redis.db"),
+      keyPrefix: configService.get<string>("redis.keyPrefix"),
+      connectTimeout: configService.get<number>("redis.connectTimeoutMs") ?? 2_000,
+      commandTimeout: configService.get<number>("redis.commandTimeoutMs") ?? 2_000,
       lazyConnect: true,
       maxRetriesPerRequest: 1
     });
@@ -58,6 +62,24 @@ export class RedisService implements OnModuleDestroy {
   async del(key: string): Promise<void> {
     await this.ensureConnected();
     await this.client.del(key);
+  }
+
+  async compareAndDelete(key: string, expectedValue: string): Promise<boolean> {
+    await this.ensureConnected();
+    const result = await this.client.eval(RELEASE_LOCK_SCRIPT, 1, key, expectedValue);
+    return Number(result) === 1;
+  }
+
+  async compareAndExpire(key: string, expectedValue: string, ttlSeconds: number): Promise<boolean> {
+    await this.ensureConnected();
+    const result = await this.client.eval(
+      RENEW_LOCK_SCRIPT,
+      1,
+      key,
+      expectedValue,
+      String(ttlSeconds)
+    );
+    return Number(result) === 1;
   }
 
   async ping(): Promise<string> {
