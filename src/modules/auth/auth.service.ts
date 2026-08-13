@@ -1,13 +1,35 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
+import { Prisma } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
+import { createHash } from "node:crypto";
 import { BusinessException } from "../../common/exceptions/business.exception";
 import { ErrorCode } from "../../common/constants/error-codes";
 import { PrismaService } from "../../database/prisma.service";
+import { RedisService } from "../../infrastructure/redis/redis.service";
 import { AuditService } from "../audit/audit.service";
-import { AccessTokenPayload, AuthUser } from "./auth.types";
+import { AccessTokenPayload, AuthUser, RefreshTokenPayload, TokenPair } from "./auth.types";
 import { LoginDto } from "./dto/login.dto";
+
+type DbClient = Prisma.TransactionClient | PrismaService;
+
+const userAuthInclude = {
+  roles: {
+    include: {
+      role: {
+        include: {
+          permissions: {
+            include: { permission: true }
+          }
+        }
+      }
+    }
+  }
+} as const;
+
+const LOGIN_FAIL_LIMIT = 5;
+const LOGIN_FAIL_WINDOW_SECONDS = 15 * 60;
 
 @Injectable()
 export class AuthService {
@@ -15,27 +37,16 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    private readonly auditService: AuditService
+    private readonly auditService: AuditService,
+    private readonly redis: RedisService
   ) {}
 
-  async login(dto: LoginDto, requestId?: string): Promise<{ accessToken: string; user: AuthUser }> {
+  async login(dto: LoginDto, requestId?: string): Promise<{ tokens: TokenPair; user: AuthUser }> {
+    await this.assertLoginNotRateLimited(dto.email);
+
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
-      include: {
-        roles: {
-          include: {
-            role: {
-              include: {
-                permissions: {
-                  include: {
-                    permission: true
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+      include: userAuthInclude
     });
 
     if (
@@ -43,29 +54,14 @@ export class AuthService {
       user.status !== "ACTIVE" ||
       !(await bcrypt.compare(dto.password, user.passwordHash))
     ) {
+      await this.recordLoginFailure(dto.email);
       throw new BusinessException(ErrorCode.INVALID_CREDENTIALS, "Invalid email or password", 401);
     }
 
-    const authUser: AuthUser = {
-      id: user.id,
-      email: user.email,
-      roles: user.roles.map(({ role }) => role.name),
-      permissions: user.roles.flatMap(({ role }) =>
-        role.permissions.map(({ permission }) => permission.code)
-      )
-    };
+    await this.clearLoginFailures(dto.email);
 
-    const payload: AccessTokenPayload = {
-      sub: authUser.id,
-      email: authUser.email,
-      roles: authUser.roles,
-      permissions: authUser.permissions,
-      type: "access"
-    };
-    const accessToken = await this.jwtService.signAsync(payload, {
-      secret: this.configService.getOrThrow<string>("auth.accessSecret"),
-      expiresIn: this.configService.getOrThrow<string>("auth.accessExpiresIn")
-    });
+    const authUser = this.toAuthUser(user);
+    const tokens = await this.issueTokens(this.prisma, authUser);
 
     await this.prisma.user.update({
       where: { id: user.id },
@@ -78,6 +74,175 @@ export class AuthService {
       requestId
     });
 
-    return { accessToken, user: authUser };
+    return { tokens, user: authUser };
+  }
+
+  async refresh(refreshToken: string): Promise<TokenPair> {
+    let payload: RefreshTokenPayload;
+    try {
+      payload = await this.jwtService.verifyAsync<RefreshTokenPayload>(refreshToken, {
+        secret: this.configService.getOrThrow<string>("auth.refreshSecret")
+      });
+    } catch {
+      throw new BusinessException(ErrorCode.AUTH_TOKEN_INVALID, "Invalid refresh token", 401);
+    }
+
+    if (payload.type !== "refresh") {
+      throw new BusinessException(ErrorCode.AUTH_TOKEN_INVALID, "Invalid refresh token", 401);
+    }
+
+    const tokenHash = this.hashToken(refreshToken);
+
+    return this.prisma.$transaction(async (tx) => {
+      const stored = await tx.refreshToken.findUnique({
+        where: { tokenHash },
+        include: { user: { include: userAuthInclude } }
+      });
+
+      if (!stored) {
+        throw new BusinessException(ErrorCode.AUTH_TOKEN_INVALID, "Invalid refresh token", 401);
+      }
+
+      // 已吊销的 refresh token 被再次使用 → 吊销该用户全部会话。
+      if (stored.revokedAt) {
+        await tx.refreshToken.updateMany({
+          where: { userId: stored.userId, revokedAt: null },
+          data: { revokedAt: new Date() }
+        });
+        throw new BusinessException(
+          ErrorCode.AUTH_TOKEN_REUSED,
+          "Refresh token reuse detected",
+          401
+        );
+      }
+
+      if (stored.expiresAt < new Date()) {
+        throw new BusinessException(ErrorCode.AUTH_TOKEN_EXPIRED, "Refresh token expired", 401);
+      }
+
+      if (stored.user.status !== "ACTIVE") {
+        throw new BusinessException(ErrorCode.INVALID_CREDENTIALS, "User is not active", 401);
+      }
+
+      await tx.refreshToken.update({
+        where: { id: stored.id },
+        data: { revokedAt: new Date() }
+      });
+
+      return this.issueTokens(tx, this.toAuthUser(stored.user));
+    });
+  }
+
+  async logout(refreshToken: string): Promise<{ revoked: boolean }> {
+    await this.prisma.refreshToken.updateMany({
+      where: { tokenHash: this.hashToken(refreshToken), revokedAt: null },
+      data: { revokedAt: new Date() }
+    });
+    return { revoked: true };
+  }
+
+  private toAuthUser(user: {
+    id: string;
+    email: string;
+    roles: Array<{
+      role: {
+        name: string;
+        permissions: Array<{ permission: { code: string } }>;
+      };
+    }>;
+  }): AuthUser {
+    return {
+      id: user.id,
+      email: user.email,
+      roles: user.roles.map(({ role }) => role.name),
+      permissions: user.roles.flatMap(({ role }) =>
+        role.permissions.map(({ permission }) => permission.code)
+      )
+    };
+  }
+
+  private async issueTokens(db: DbClient, user: AuthUser): Promise<TokenPair> {
+    const accessPayload: AccessTokenPayload = {
+      sub: user.id,
+      email: user.email,
+      roles: user.roles,
+      permissions: user.permissions,
+      type: "access"
+    };
+    const accessToken = await this.jwtService.signAsync(accessPayload, {
+      secret: this.configService.getOrThrow<string>("auth.accessSecret"),
+      expiresIn: this.configService.getOrThrow<string>("auth.accessExpiresIn")
+    });
+
+    const refreshRecord = await db.refreshToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: "pending",
+        expiresAt: this.getRefreshExpiry()
+      }
+    });
+    const refreshPayload: RefreshTokenPayload = {
+      sub: user.id,
+      tokenId: refreshRecord.id,
+      type: "refresh"
+    };
+    const refreshToken = await this.jwtService.signAsync(refreshPayload, {
+      secret: this.configService.getOrThrow<string>("auth.refreshSecret"),
+      expiresIn: this.configService.getOrThrow<string>("auth.refreshExpiresIn")
+    });
+
+    await db.refreshToken.update({
+      where: { id: refreshRecord.id },
+      data: { tokenHash: this.hashToken(refreshToken) }
+    });
+
+    return { accessToken, refreshToken };
+  }
+
+  private hashToken(token: string): string {
+    return createHash("sha256").update(token).digest("hex");
+  }
+
+  private getRefreshExpiry(): Date {
+    const expiresIn = this.configService.getOrThrow<string>("auth.refreshExpiresIn");
+    const daysMatch = /^(\d+)d$/.exec(expiresIn);
+    const hoursMatch = /^(\d+)h$/.exec(expiresIn);
+    const minutesMatch = /^(\d+)m$/.exec(expiresIn);
+    const now = Date.now();
+
+    if (daysMatch) return new Date(now + Number(daysMatch[1]) * 24 * 60 * 60 * 1000);
+    if (hoursMatch) return new Date(now + Number(hoursMatch[1]) * 60 * 60 * 1000);
+    if (minutesMatch) return new Date(now + Number(minutesMatch[1]) * 60 * 1000);
+    return new Date(now + 7 * 24 * 60 * 60 * 1000);
+  }
+
+  private loginFailKey(email: string): string {
+    return `auth:login:fail:${email.trim().toLowerCase()}`;
+  }
+
+  private async assertLoginNotRateLimited(email: string): Promise<void> {
+    const key = this.loginFailKey(email);
+    const raw = await this.redis.get(key);
+    const failures = raw ? Number(raw) : 0;
+    if (failures < LOGIN_FAIL_LIMIT) return;
+
+    const ttl = await this.redis.ttl(key);
+    throw new BusinessException(
+      ErrorCode.AUTH_RATE_LIMITED,
+      `Too many failed login attempts. Retry in ${Math.max(ttl, 1)} seconds`,
+      429
+    );
+  }
+
+  private async recordLoginFailure(email: string): Promise<void> {
+    const key = this.loginFailKey(email);
+    const failures = await this.redis.incr(key);
+    if (failures === 1) {
+      await this.redis.expire(key, LOGIN_FAIL_WINDOW_SECONDS);
+    }
+  }
+
+  private async clearLoginFailures(email: string): Promise<void> {
+    await this.redis.del(this.loginFailKey(email));
   }
 }

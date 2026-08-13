@@ -14,9 +14,15 @@
 cp .env.example .env
 pnpm install
 docker compose up -d
-pnpm prisma migrate dev --name init
+pnpm prisma migrate deploy
 pnpm prisma:seed
 pnpm dev
+```
+
+开发环境也可使用：
+
+```bash
+pnpm prisma migrate dev
 ```
 
 服务地址：
@@ -28,6 +34,16 @@ Liveness: http://localhost:3000/health/live
 Readiness: http://localhost:3000/health/ready
 ```
 
+## 认证接口
+
+| 方法 | 路径            | 说明                            |
+| ---- | --------------- | ------------------------------- |
+| POST | `/auth/login`   | 登录，返回 access/refresh token |
+| POST | `/auth/refresh` | 刷新 token（旋转 + 防重放）     |
+| POST | `/auth/logout`  | 吊销 refresh token              |
+
+登录失败累计 5 次会触发 Redis 限流（15 分钟），同时接口层有 Throttler 限流。
+
 ## 示例账号
 
 执行 seed 后：
@@ -35,6 +51,7 @@ Readiness: http://localhost:3000/health/ready
 ```text
 email: admin@example.com
 password: ChangeMe123!
+permissions: user:read, user:write
 ```
 
 生产环境必须修改 seed 密码并通过安全的密钥管理系统注入 JWT Secret。
