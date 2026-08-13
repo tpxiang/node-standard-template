@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: enterprise-node-backend
+spec:
+  selector:
+    app: enterprise-node-backend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
+
