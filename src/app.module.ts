@@ -4,7 +4,7 @@
  */
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
-import { APP_GUARD } from "@nestjs/core";
+import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { LoggerModule } from "nestjs-pino";
 import { env } from "node:process";
@@ -13,12 +13,15 @@ import { authConfig } from "./config/auth.config";
 import { databaseConfig } from "./config/database.config";
 import { redisConfig } from "./config/redis.config";
 import { validateEnv } from "./config/env.validation";
+import { IdempotencyInterceptor } from "./common/interceptors/idempotency.interceptor";
+import { ResponseInterceptor } from "./common/interceptors/response.interceptor";
 import { DatabaseModule } from "./database/database.module";
 import { RedisModule } from "./infrastructure/redis/redis.module";
 import { AuditModule } from "./modules/audit/audit.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { HealthModule } from "./modules/health/health.module";
 import { RolesModule } from "./modules/roles/roles.module";
+import { SchedulerModule } from "./modules/scheduler/scheduler.module";
 import { UsersModule } from "./modules/users/users.module";
 
 @Module({
@@ -57,6 +60,7 @@ import { UsersModule } from "./modules/users/users.module";
     }),
     DatabaseModule,
     RedisModule,
+    SchedulerModule,
     HealthModule,
     AuditModule,
     RolesModule,
@@ -67,6 +71,14 @@ import { UsersModule } from "./modules/users/users.module";
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: IdempotencyInterceptor
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ResponseInterceptor
     }
   ]
 })

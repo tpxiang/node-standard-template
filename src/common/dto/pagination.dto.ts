@@ -1,8 +1,11 @@
 /**
- * 通用分页查询 DTO 与分页结果结构。
+ * 通用分页 / 排序 / 关键字查询约定（GET Query）。
+ * - page / pageSize：分页
+ * - keyword：业务自行解释搜索字段
+ * - sortBy / sortOrder：白名单排序，防任意字段注入
  */
 import { Type } from "class-transformer";
-import { IsInt, IsOptional, IsString, Max, Min } from "class-validator";
+import { IsIn, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
 
 export class PaginationDto {
   @IsOptional()
@@ -22,6 +25,15 @@ export class PaginationDto {
   @IsOptional()
   @IsString()
   keyword?: string;
+
+  /** 排序字段名；service 侧应用白名单映射到 Prisma orderBy */
+  @IsOptional()
+  @IsString()
+  sortBy?: string;
+
+  @IsOptional()
+  @IsIn(["asc", "desc"])
+  sortOrder: "asc" | "desc" = "desc";
 }
 
 export interface PageResult<T> {
@@ -29,4 +41,28 @@ export interface PageResult<T> {
   total: number;
   page: number;
   pageSize: number;
+}
+
+export function toPageResult<T>(
+  items: T[],
+  total: number,
+  query: Pick<PaginationDto, "page" | "pageSize">
+): PageResult<T> {
+  return {
+    items,
+    total,
+    page: query.page,
+    pageSize: query.pageSize
+  };
+}
+
+/** Prisma skip/take 计算。 */
+export function pageOffset(query: Pick<PaginationDto, "page" | "pageSize">): {
+  skip: number;
+  take: number;
+} {
+  return {
+    skip: (query.page - 1) * query.pageSize,
+    take: query.pageSize
+  };
 }

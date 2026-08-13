@@ -1,6 +1,5 @@
 /**
- * Redis 封装：懒连接 + 常用 KV/计数操作。
- * 用于登录失败限流、access token 黑名单、健康检查等。
+ * Redis 封装：懒连接 + KV/计数/分布式锁原语。
  */
 import { Injectable, OnModuleDestroy } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -35,6 +34,12 @@ export class RedisService implements OnModuleDestroy {
     await this.client.set(key, value, "EX", ttlSeconds);
   }
 
+  async setNx(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+    await this.ensureConnected();
+    const result = await this.client.set(key, value, "EX", ttlSeconds, "NX");
+    return result === "OK";
+  }
+
   async incr(key: string): Promise<number> {
     await this.ensureConnected();
     return this.client.incr(key);
@@ -66,7 +71,6 @@ export class RedisService implements OnModuleDestroy {
     }
   }
 
-  /** 仅在尚未连接时发起 connect，避免重复连接。 */
   private async ensureConnected(): Promise<void> {
     if (this.client.status === "wait") {
       await this.client.connect();

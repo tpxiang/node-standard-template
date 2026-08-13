@@ -7,7 +7,12 @@ import { UserStatus } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
 import { BusinessException } from "../../common/exceptions/business.exception";
 import { ErrorCode } from "../../common/constants/error-codes";
-import { PageResult, PaginationDto } from "../../common/dto/pagination.dto";
+import {
+  PageResult,
+  PaginationDto,
+  pageOffset,
+  toPageResult
+} from "../../common/dto/pagination.dto";
 import { PrismaService } from "../../database/prisma.service";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
@@ -22,6 +27,8 @@ const userPublicSelect = {
   createdAt: true,
   updatedAt: true
 } as const;
+
+const USER_SORT_FIELDS = new Set(["createdAt", "email", "name"]);
 
 type PublicUser = {
   id: string;
@@ -45,23 +52,22 @@ export class UsersService {
         }
       : {};
 
+    const sortBy =
+      query.sortBy && USER_SORT_FIELDS.has(query.sortBy) ? query.sortBy : "createdAt";
+    const { skip, take } = pageOffset(query);
+
     const [items, total] = await Promise.all([
       this.prisma.user.findMany({
         where,
         select: userPublicSelect,
-        orderBy: { createdAt: "desc" },
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize
+        orderBy: { [sortBy]: query.sortOrder },
+        skip,
+        take
       }),
       this.prisma.user.count({ where })
     ]);
 
-    return {
-      items,
-      total,
-      page: query.page,
-      pageSize: query.pageSize
-    };
+    return toPageResult(items, total, query);
   }
 
   async findById(id: string): Promise<PublicUser> {

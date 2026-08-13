@@ -6,6 +6,7 @@ import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import { FastifyRequest } from "fastify";
+import { setRequestUserId } from "../../../common/context/request-context";
 import { AuthService } from "../auth.service";
 import { AccessTokenPayload, AuthUser } from "../auth.types";
 
@@ -46,6 +47,7 @@ export class JwtAuthGuard implements CanActivate {
         roles: payload.roles,
         permissions: payload.permissions
       };
+      setRequestUserId(payload.sub);
       return true;
     } catch (error) {
       if (error instanceof UnauthorizedException) {

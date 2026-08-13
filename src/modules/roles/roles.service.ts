@@ -1,18 +1,45 @@
-/** 角色服务：查询角色与给用户赋角色。 */
 import { Injectable } from "@nestjs/common";
 import { Prisma, Role } from "@prisma/client";
 import { BusinessException } from "../../common/exceptions/business.exception";
 import { ErrorCode } from "../../common/constants/error-codes";
+import {
+  PageResult,
+  PaginationDto,
+  pageOffset,
+  toPageResult
+} from "../../common/dto/pagination.dto";
 import { PrismaService } from "../../database/prisma.service";
+
+const ROLE_SORT_FIELDS = new Set(["name", "createdAt"]);
 
 @Injectable()
 export class RolesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(): Promise<Role[]> {
-    return this.prisma.role.findMany({
-      orderBy: { name: "asc" }
-    });
+  async list(query: PaginationDto): Promise<PageResult<Role>> {
+    const where = query.keyword
+      ? {
+          OR: [
+            { name: { contains: query.keyword } },
+            { description: { contains: query.keyword } }
+          ]
+        }
+      : {};
+
+    const sortBy = query.sortBy && ROLE_SORT_FIELDS.has(query.sortBy) ? query.sortBy : "name";
+    const { skip, take } = pageOffset(query);
+
+    const [items, total] = await Promise.all([
+      this.prisma.role.findMany({
+        where,
+        orderBy: { [sortBy]: query.sortOrder },
+        skip,
+        take
+      }),
+      this.prisma.role.count({ where })
+    ]);
+
+    return toPageResult(items, total, query);
   }
 
   async findById(id: string): Promise<
@@ -38,7 +65,7 @@ export class RolesService {
     return role;
   }
 
-  /** 幂等赋权：已存在的 user-role 关系直接返回。 */
+  /** 幂等赋权：已存在则 no-op。模板未提供撤权 API，需按业务补齐。 */
   async assignUser(userId: string, roleId: string): Promise<{ userId: string; roleId: string }> {
     const [user, role] = await Promise.all([
       this.prisma.user.findUnique({ where: { id: userId }, select: { id: true } }),
