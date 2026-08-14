@@ -172,4 +172,39 @@ describe("AuthService", () => {
       code: ErrorCode.AUTH_TOKEN_INVALID
     });
   });
+
+  it("commits session revocation before rejecting refresh token reuse", async () => {
+    let transactionCallbackRejected = false;
+    const updateMany = vi.fn().mockResolvedValue({ count: 2 });
+    const tx = {
+      refreshToken: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "rt-1",
+          userId: "user-1",
+          revokedAt: new Date(),
+          expiresAt: new Date(Date.now() + 60_000),
+          user: { id: "user-1", email: "admin@example.com", status: "ACTIVE", roles: [] }
+        }),
+        updateMany
+      }
+    };
+    prisma.$transaction.mockImplementation(async (fn: (client: typeof tx) => Promise<unknown>) => {
+      try {
+        return await fn(tx);
+      } catch (error) {
+        transactionCallbackRejected = true;
+        throw error;
+      }
+    });
+    jwtService.verifyAsync.mockResolvedValue({ type: "refresh", sub: "user-1", tokenId: "rt-1" });
+
+    await expect(service.refresh("stolen-refresh-token")).rejects.toMatchObject({
+      code: ErrorCode.AUTH_TOKEN_REUSED
+    });
+    expect(transactionCallbackRejected).toBe(false);
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { userId: "user-1", revokedAt: null },
+      data: { revokedAt: expect.any(Date) }
+    });
+  });
 });

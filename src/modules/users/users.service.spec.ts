@@ -82,7 +82,10 @@ describe("UsersService.create", () => {
       new UsersService(prisma as never).update({ id: "user-1", name: "Updated" })
     ).resolves.toEqual(user);
     expect(prisma.user.update).toHaveBeenCalledWith(
-      expect.objectContaining({ select: expect.not.objectContaining({ passwordHash: true }) })
+      expect.objectContaining({
+        data: { name: "Updated" },
+        select: expect.not.objectContaining({ passwordHash: true })
+      })
     );
   });
 });
