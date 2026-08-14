@@ -5,6 +5,7 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from "@nestjs/common";
 import { FastifyRequest } from "fastify";
 import { map, Observable } from "rxjs";
+import { toJsonValue } from "../serialization/json-serializer";
 
 interface ApiResponse<T> {
   success: true;
@@ -26,7 +27,7 @@ export class ResponseInterceptor<T> implements NestInterceptor<T, ApiResponse<T>
     return next.handle().pipe(
       map((data) => ({
         success: true,
-        data,
+        data: toJsonValue(data),
         requestId,
         timestamp: new Date().toISOString()
       }))
