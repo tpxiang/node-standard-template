@@ -44,6 +44,7 @@ describe("AuthService", () => {
 
   const redis = {
     get: vi.fn(),
+    incrementWithTtl: vi.fn(),
     incr: vi.fn(),
     expire: vi.fn(),
     ttl: vi.fn(),
@@ -56,6 +57,7 @@ describe("AuthService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     redis.get.mockResolvedValue(null);
+    redis.incrementWithTtl.mockResolvedValue(1);
     redis.incr.mockResolvedValue(1);
     redis.ttl.mockResolvedValue(900);
     redis.del.mockResolvedValue(undefined);
@@ -89,8 +91,7 @@ describe("AuthService", () => {
       service.login({ email: "missing@example.com", password: "ChangeMe123!" })
     ).rejects.toBeInstanceOf(BusinessException);
 
-    expect(redis.incr).toHaveBeenCalled();
-    expect(redis.expire).toHaveBeenCalled();
+    expect(redis.incrementWithTtl).toHaveBeenCalled();
   });
 
   it("issues token pair on successful login", async () => {

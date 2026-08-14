@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+.git
+.cocoindex_code
+.pnpm-store
+.env
+.env.*
+!.env.example
+*.log
+Dockerfile*
+README.md
