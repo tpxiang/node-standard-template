@@ -5,6 +5,10 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { Permissions } from "../../common/decorators/permissions.decorator";
+import {
+  ApiIdempotencyKey,
+  ApiStandardContract
+} from "../../common/decorators/api-contract.decorator";
 import { IdQueryDto } from "../../common/dto/id-query.dto";
 import { PaginationDto } from "../../common/dto/pagination.dto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -15,6 +19,7 @@ import { UsersService } from "./users.service";
 
 @ApiTags("users")
 @ApiBearerAuth()
+@ApiStandardContract()
 @Controller("users")
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class UsersController {
@@ -33,12 +38,14 @@ export class UsersController {
   }
 
   @Post("create")
+  @ApiIdempotencyKey()
   @Permissions("user:write")
   create(@Body() dto: CreateUserDto): Promise<{ id: string; email: string; name: string }> {
     return this.usersService.create(dto);
   }
 
   @Post("update")
+  @ApiIdempotencyKey()
   @Permissions("user:write")
   update(@Body() dto: UpdateUserDto): Promise<unknown> {
     return this.usersService.update(dto);

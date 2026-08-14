@@ -9,8 +9,10 @@ import { FastifyRequest } from "fastify";
 import { AuthService } from "./auth.service";
 import { LoginDto } from "./dto/login.dto";
 import { RefreshTokenDto } from "./dto/refresh-token.dto";
+import { ApiStandardContract } from "../../common/decorators/api-contract.decorator";
 
 @ApiTags("auth")
+@ApiStandardContract()
 @Controller("auth")
 export class AuthController {
   constructor(private readonly authService: AuthService) {}

@@ -1,6 +1,10 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { Permissions } from "../../common/decorators/permissions.decorator";
+import {
+  ApiIdempotencyKey,
+  ApiStandardContract
+} from "../../common/decorators/api-contract.decorator";
 import { IdQueryDto } from "../../common/dto/id-query.dto";
 import { PaginationDto } from "../../common/dto/pagination.dto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -13,6 +17,7 @@ import { RolesService } from "./roles.service";
  */
 @ApiTags("roles")
 @ApiBearerAuth()
+@ApiStandardContract()
 @Controller("roles")
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class RolesController {
@@ -31,6 +36,7 @@ export class RolesController {
   }
 
   @Post("assign-user")
+  @ApiIdempotencyKey()
   @Permissions("role:write")
   assignUser(@Body() dto: AssignRoleDto): Promise<{ userId: string; roleId: string }> {
     return this.rolesService.assignUser(dto.userId, dto.roleId);
