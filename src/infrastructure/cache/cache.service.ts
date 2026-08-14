@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { RedisService } from "../redis/redis.service";
+import { stringifyJson } from "../../common/serialization/json-serializer";
 
 export interface CacheOptions {
   ttlSeconds: number;
@@ -27,7 +28,7 @@ export class CacheService {
     this.assertTtl(options.ttlSeconds);
     await this.redis.set(
       this.buildKey(options.namespace ?? "default", key),
-      JSON.stringify(value),
+      stringifyJson(value),
       options.ttlSeconds
     );
   }
