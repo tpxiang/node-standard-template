@@ -68,7 +68,17 @@ export class AuthTokenService {
       if (stored.user.status !== "ACTIVE") {
         throw new BusinessException(ErrorCode.INVALID_CREDENTIALS, "User is not active", 401);
       }
-      await tx.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
+      const revoked = await tx.refreshToken.updateMany({
+        where: { id: stored.id, revokedAt: null },
+        data: { revokedAt: new Date() }
+      });
+      if (revoked.count !== 1) {
+        await tx.refreshToken.updateMany({
+          where: { userId: stored.userId, revokedAt: null },
+          data: { revokedAt: new Date() }
+        });
+        throw new BusinessException(ErrorCode.AUTH_TOKEN_REUSED, "Refresh token reuse detected", 401);
+      }
       return this.issueTokens(tx, this.toAuthUser(stored.user));
     });
   }

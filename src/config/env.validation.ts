@@ -120,9 +120,15 @@ export function validateEnv(config: Record<string, unknown>): EnvironmentVariabl
 
   if (validated.NODE_ENV === "production") {
     const insecure: string[] = [];
-    if (validated.JWT_ACCESS_SECRET.length < 32 || validated.JWT_ACCESS_SECRET === "replace-me")
+    if (
+      validated.JWT_ACCESS_SECRET.length < 32 ||
+      /^(change-me|replace-with|your[-_])/i.test(validated.JWT_ACCESS_SECRET)
+    )
       insecure.push("JWT_ACCESS_SECRET must contain at least 32 characters");
-    if (validated.JWT_REFRESH_SECRET.length < 32 || validated.JWT_REFRESH_SECRET === "replace-me")
+    if (
+      validated.JWT_REFRESH_SECRET.length < 32 ||
+      /^(change-me|replace-with|your[-_])/i.test(validated.JWT_REFRESH_SECRET)
+    )
       insecure.push("JWT_REFRESH_SECRET must contain at least 32 characters");
     if (validated.CORS_ORIGINS.split(",").some((origin) => origin.trim() === "*"))
       insecure.push("CORS_ORIGINS must not contain '*' in production");
