@@ -1,7 +1,3 @@
-/**
- * 用户接口。
- * 入参约定：GET 仅 Query；增删改仅 POST + Body；不使用 path / header 业务入参。
- */
 import {
   Body,
   Controller,
@@ -14,23 +10,27 @@ import {
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { Permissions } from "../../common/decorators/permissions.decorator";
+import { PaginationDto } from "../../common/dto/pagination.dto";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { PermissionsGuard } from "../auth/guards/permissions.guard";
+import { TenantGuard } from "../auth/guards/tenant.guard";
+import { IdQueryDto } from "../../common/dto/id-query.dto";
+import { CreateUserDto } from "./dto/create-user.dto";
+import { UpdateUserDto } from "./dto/update-user.dto";
+import { UsersService } from "./users.service";
 import {
   ApiIdempotencyKey,
   ApiStandardContract
 } from "../../common/decorators/api-contract.decorator";
-import { IdQueryDto } from "../../common/dto/id-query.dto";
-import { PaginationDto } from "../../common/dto/pagination.dto";
-import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
-import { PermissionsGuard } from "../auth/guards/permissions.guard";
-import { CreateUserDto } from "./dto/create-user.dto";
-import { UpdateUserDto } from "./dto/update-user.dto";
-import { UsersService } from "./users.service";
 
+/**
+ * 入参约定：GET 仅 Query；增删改仅 POST + Body。
+ */
 @ApiTags("users")
 @ApiBearerAuth()
 @ApiStandardContract()
 @Controller("users")
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, TenantGuard, PermissionsGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 

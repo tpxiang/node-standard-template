@@ -1,7 +1,3 @@
-/**
- * 用户服务：列表 / 详情 / 创建 / 更新。
- * 对外查询永不返回 passwordHash。
- */
 import { Injectable } from "@nestjs/common";
 import { Prisma, UserStatus } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
@@ -17,8 +13,8 @@ import {
 import { PrismaService } from "../../database/prisma.service";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
+import { requireRequestTenantId } from "../../common/context/request-context";
 
-/** 对外暴露的用户字段白名单。 */
 const userPublicSelect = {
   id: true,
   email: true,
@@ -46,12 +42,16 @@ export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(query: PaginationDto): Promise<PageResult<PublicUser>> {
+    const tenantId = requireRequestTenantId();
     // 不使用 PostgreSQL 专有的 mode:insensitive，保证 main/mysql 业务代码一致。
-    const where = query.keyword
-      ? {
-          OR: [{ email: { contains: query.keyword } }, { name: { contains: query.keyword } }]
-        }
-      : {};
+    const where = {
+      tenantMembers: { some: { tenantId, status: "ACTIVE" as const } },
+      ...(query.keyword
+        ? {
+            OR: [{ email: { contains: query.keyword } }, { name: { contains: query.keyword } }]
+          }
+        : {})
+    };
 
     const sortBy = resolveSortField(query.sortBy, USER_SORT_FIELDS, "createdAt");
     const { skip, take } = pageOffset(query);
@@ -71,8 +71,9 @@ export class UsersService {
   }
 
   async findById(id: string): Promise<PublicUser> {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
+    const tenantId = requireRequestTenantId();
+    const user = await this.prisma.user.findFirst({
+      where: { id, tenantMembers: { some: { tenantId, status: "ACTIVE" } } },
       select: userPublicSelect
     });
     if (!user) {
@@ -82,6 +83,7 @@ export class UsersService {
   }
 
   async create(dto: CreateUserDto): Promise<{ id: string; email: string; name: string }> {
+    const tenantId = requireRequestTenantId();
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) {
       throw new BusinessException(ErrorCode.USER_ALREADY_EXISTS, "User already exists", 409);
@@ -89,11 +91,16 @@ export class UsersService {
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
     try {
-      return await this.prisma.user.create({
-        data: { email: dto.email, name: dto.name, passwordHash },
-        select: { id: true, email: true, name: true }
+      return await this.prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: { email: dto.email, name: dto.name, passwordHash },
+          select: { id: true, email: true, name: true }
+        });
+        await tx.tenantMember.create({ data: { tenantId, userId: user.id } });
+        return user;
       });
     } catch (error) {
+      // The pre-check is only a fast path; the database unique index is the concurrency guard.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
         throw new BusinessException(ErrorCode.USER_ALREADY_EXISTS, "User already exists", 409);
       }
@@ -105,10 +112,7 @@ export class UsersService {
     await this.findById(dto.id);
     return this.prisma.user.update({
       where: { id: dto.id },
-      data: {
-        name: dto.name,
-        status: dto.status
-      },
+      data: { name: dto.name, status: dto.status },
       select: userPublicSelect
     });
   }

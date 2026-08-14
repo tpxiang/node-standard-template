@@ -10,6 +10,7 @@ import {
   toPageResult
 } from "../../common/dto/pagination.dto";
 import { PrismaService } from "../../database/prisma.service";
+import { requireRequestTenantId } from "../../common/context/request-context";
 
 const ROLE_SORT_FIELDS = new Set(["name", "createdAt"]);
 
@@ -18,11 +19,18 @@ export class RolesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(query: PaginationDto): Promise<PageResult<Role>> {
-    const where = query.keyword
-      ? {
-          OR: [{ name: { contains: query.keyword } }, { description: { contains: query.keyword } }]
-        }
-      : {};
+    const tenantId = requireRequestTenantId();
+    const where = {
+      tenantId,
+      ...(query.keyword
+        ? {
+            OR: [
+              { name: { contains: query.keyword } },
+              { description: { contains: query.keyword } }
+            ]
+          }
+        : {})
+    };
 
     const sortBy = resolveSortField(query.sortBy, ROLE_SORT_FIELDS, "name");
     const { skip, take } = pageOffset(query);
@@ -45,8 +53,9 @@ export class RolesService {
       permissions: Array<{ permission: { id: string; code: string; description: string | null } }>;
     }
   > {
-    const role = await this.prisma.role.findUnique({
-      where: { id },
+    const tenantId = requireRequestTenantId();
+    const role = await this.prisma.role.findFirst({
+      where: { id, tenantId },
       include: {
         permissions: {
           include: {
@@ -65,12 +74,16 @@ export class RolesService {
 
   /** 幂等赋权：已存在则 no-op。模板未提供撤权 API，需按业务补齐。 */
   async assignUser(userId: string, roleId: string): Promise<{ userId: string; roleId: string }> {
-    const [user, role] = await Promise.all([
-      this.prisma.user.findUnique({ where: { id: userId }, select: { id: true } }),
-      this.prisma.role.findUnique({ where: { id: roleId }, select: { id: true } })
+    const tenantId = requireRequestTenantId();
+    const [member, role] = await Promise.all([
+      this.prisma.tenantMember.findUnique({
+        where: { tenantId_userId: { tenantId, userId } },
+        select: { id: true, status: true }
+      }),
+      this.prisma.role.findFirst({ where: { id: roleId, tenantId }, select: { id: true } })
     ]);
 
-    if (!user) {
+    if (!member || member.status !== "ACTIVE") {
       throw new BusinessException(ErrorCode.USER_NOT_FOUND, "User not found", 404);
     }
     if (!role) {
@@ -78,12 +91,12 @@ export class RolesService {
     }
 
     try {
-      await this.prisma.userRole.upsert({
+      await this.prisma.tenantMemberRole.upsert({
         where: {
-          userId_roleId: { userId, roleId }
+          memberId_roleId: { memberId: member.id, roleId }
         },
         update: {},
-        create: { userId, roleId }
+        create: { memberId: member.id, roleId }
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
