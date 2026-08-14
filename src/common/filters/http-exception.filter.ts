@@ -80,6 +80,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
           status: HttpStatus.CONFLICT,
           body: { code: ErrorCode.RESOURCE_CONFLICT, message: "Resource is still referenced" }
         };
+      if (exception.code === "P2034")
+        return {
+          status: HttpStatus.CONFLICT,
+          body: { code: ErrorCode.RESOURCE_CONFLICT, message: "Transaction conflict, please retry" }
+        };
     }
     const code = (exception as { code?: unknown } | null)?.code;
     if (typeof code === "string" && ["ECONNREFUSED", "ECONNRESET", "ETIMEDOUT"].includes(code)) {
