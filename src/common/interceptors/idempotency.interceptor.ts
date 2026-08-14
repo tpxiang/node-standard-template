@@ -1,6 +1,7 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from "@nestjs/common";
 import { FastifyReply, FastifyRequest } from "fastify";
 import { createHash, randomUUID } from "node:crypto";
+import { clearInterval, setInterval } from "node:timers";
 import { Observable, from, of, throwError } from "rxjs";
 import { catchError, finalize, map, mergeMap } from "rxjs/operators";
 import { getRequestUserId } from "../context/request-context";
@@ -77,6 +78,13 @@ export class IdempotencyInterceptor implements NestInterceptor {
               );
             }
 
+            const renewal = setInterval(
+              () => {
+                void this.redis.compareAndExpire(lockKey, lockToken, LOCK_TTL_SECONDS);
+              },
+              Math.floor((LOCK_TTL_SECONDS * 1_000) / 3)
+            );
+            renewal.unref();
             return next.handle().pipe(
               mergeMap((body) =>
                 from(
@@ -93,6 +101,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
               }),
               catchError((error: unknown) => throwError(() => error)),
               finalize(() => {
+                clearInterval(renewal);
                 void this.redis.compareAndDelete(lockKey, lockToken);
               })
             );

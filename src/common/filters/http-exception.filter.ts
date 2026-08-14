@@ -11,6 +11,7 @@ import {
   Logger
 } from "@nestjs/common";
 import { FastifyReply, FastifyRequest } from "fastify";
+import { Prisma } from "@prisma/client";
 import { ErrorCode } from "../constants/error-codes";
 
 interface ErrorResponseBody {
@@ -28,11 +29,15 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const request = context.getRequest<FastifyRequest>();
     const requestId = request.headers["x-request-id"]?.toString();
 
+    const mapped = this.mapInfrastructureException(exception);
     const status =
-      exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
+      mapped?.status ??
+      (exception instanceof HttpException
+        ? exception.getStatus()
+        : HttpStatus.INTERNAL_SERVER_ERROR);
     const exceptionResponse =
       exception instanceof HttpException ? exception.getResponse() : undefined;
-    const body = this.resolveBody(exceptionResponse);
+    const body = mapped?.body ?? this.resolveBody(exceptionResponse);
 
     // 4xx 多为可预期业务/校验错误；仅 5xx 记录完整异常上下文。
     if (status >= 500) {
@@ -54,6 +59,36 @@ export class HttpExceptionFilter implements ExceptionFilter {
       requestId,
       timestamp: new Date().toISOString()
     });
+  }
+
+  private mapInfrastructureException(
+    exception: unknown
+  ): { status: number; body: ErrorResponseBody } | undefined {
+    if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+      if (exception.code === "P2002")
+        return {
+          status: HttpStatus.CONFLICT,
+          body: { code: ErrorCode.RESOURCE_ALREADY_EXISTS, message: "Resource already exists" }
+        };
+      if (exception.code === "P2025")
+        return {
+          status: HttpStatus.NOT_FOUND,
+          body: { code: ErrorCode.RESOURCE_NOT_FOUND, message: "Resource not found" }
+        };
+      if (exception.code === "P2003")
+        return {
+          status: HttpStatus.CONFLICT,
+          body: { code: ErrorCode.RESOURCE_CONFLICT, message: "Resource is still referenced" }
+        };
+    }
+    const code = (exception as { code?: unknown } | null)?.code;
+    if (typeof code === "string" && ["ECONNREFUSED", "ECONNRESET", "ETIMEDOUT"].includes(code)) {
+      return {
+        status: HttpStatus.SERVICE_UNAVAILABLE,
+        body: { code: ErrorCode.DEPENDENCY_UNAVAILABLE, message: "Dependency unavailable" }
+      };
+    }
+    return undefined;
   }
 
   private resolveBody(response: string | object | undefined): ErrorResponseBody {

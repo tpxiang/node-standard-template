@@ -4,7 +4,12 @@
 import { Injectable, OnModuleDestroy } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import Redis from "ioredis";
-import { RELEASE_LOCK_SCRIPT, RENEW_LOCK_SCRIPT } from "./redis.scripts";
+import {
+  INCREMENT_WITH_TTL_SCRIPT,
+  RELEASE_LOCK_SCRIPT,
+  RENEW_LOCK_SCRIPT,
+  THROTTLE_SCRIPT
+} from "./redis.scripts";
 
 @Injectable()
 export class RedisService implements OnModuleDestroy {
@@ -47,6 +52,41 @@ export class RedisService implements OnModuleDestroy {
   async incr(key: string): Promise<number> {
     await this.ensureConnected();
     return this.client.incr(key);
+  }
+
+  async incrementWithTtl(key: string, ttlSeconds: number): Promise<{ value: number; ttl: number }> {
+    await this.ensureConnected();
+    const result = (await this.client.eval(
+      INCREMENT_WITH_TTL_SCRIPT,
+      1,
+      key,
+      String(ttlSeconds)
+    )) as [number, number];
+    return { value: Number(result[0]), ttl: Number(result[1]) };
+  }
+
+  async incrementThrottle(
+    key: string,
+    ttlMs: number,
+    limit: number,
+    blockDurationMs: number
+  ): Promise<{ value: number; ttlMs: number; blockTtlMs: number; isBlocked: boolean }> {
+    await this.ensureConnected();
+    const result = (await this.client.eval(
+      THROTTLE_SCRIPT,
+      2,
+      key,
+      `${key}:block`,
+      String(ttlMs),
+      String(limit),
+      String(blockDurationMs)
+    )) as [number, number, number, number];
+    return {
+      value: Number(result[0]),
+      ttlMs: Number(result[1]),
+      blockTtlMs: Number(result[2]),
+      isBlocked: Number(result[3]) === 1
+    };
   }
 
   async expire(key: string, ttlSeconds: number): Promise<void> {

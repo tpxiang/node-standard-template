@@ -8,10 +8,15 @@ describe("HealthService", () => {
     expect(service.live()).toEqual({ status: "ok" });
   });
 
-  it("returns ok for startup", () => {
-    const service = new HealthService({} as never, {} as never);
-
-    expect(service.startup()).toEqual({ status: "ok" });
+  it("checks dependencies during startup", async () => {
+    const service = new HealthService(
+      { $queryRaw: vi.fn().mockResolvedValue([{ result: 1 }]) } as never,
+      { ping: vi.fn().mockResolvedValue("PONG") } as never
+    );
+    await expect(service.startup()).resolves.toEqual({
+      status: "ok",
+      checks: { database: "ok", redis: "ok" }
+    });
   });
 
   it("reports dependency status", async () => {

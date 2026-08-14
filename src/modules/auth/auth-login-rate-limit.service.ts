@@ -23,8 +23,7 @@ export class AuthLoginRateLimitService {
   }
   async recordFailure(email: string): Promise<void> {
     const key = this.key(email);
-    const failures = await this.redis.incr(key);
-    if (failures === 1) await this.redis.expire(key, LOGIN_FAIL_WINDOW_SECONDS);
+    await this.redis.incrementWithTtl(key, LOGIN_FAIL_WINDOW_SECONDS);
   }
   clear(email: string): Promise<void> {
     return this.redis.del(this.key(email));

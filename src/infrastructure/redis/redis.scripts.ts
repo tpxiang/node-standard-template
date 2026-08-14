@@ -12,3 +12,23 @@ if redis.call("get", KEYS[1]) == ARGV[1] then
 end
 return 0
 `;
+
+export const INCREMENT_WITH_TTL_SCRIPT = `
+local value = redis.call("incr", KEYS[1])
+if value == 1 or redis.call("ttl", KEYS[1]) < 0 then redis.call("expire", KEYS[1], ARGV[1]) end
+return {value, redis.call("ttl", KEYS[1])}
+`;
+
+export const THROTTLE_SCRIPT = `
+if redis.call("exists", KEYS[2]) == 1 then
+  return {tonumber(ARGV[2]) + 1, 0, redis.call("pttl", KEYS[2]), 1}
+end
+local value = redis.call("incr", KEYS[1])
+if value == 1 or redis.call("pttl", KEYS[1]) < 0 then redis.call("pexpire", KEYS[1], ARGV[1]) end
+if value > tonumber(ARGV[2]) then
+  redis.call("psetex", KEYS[2], ARGV[3], "1")
+  redis.call("del", KEYS[1])
+  return {value, 0, tonumber(ARGV[3]), 1}
+end
+return {value, redis.call("pttl", KEYS[1]), 0, 0}
+`;
