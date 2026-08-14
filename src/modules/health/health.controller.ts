@@ -14,7 +14,7 @@ export class HealthController {
   }
 
   @Get("startup")
-  startup(): { status: string } {
+  startup(): Promise<{ status: string; checks: Record<string, string> }> {
     return this.healthService.startup();
   }
 

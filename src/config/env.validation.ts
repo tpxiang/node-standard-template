@@ -96,6 +96,14 @@ class EnvironmentVariables {
   @IsInt()
   @Min(1)
   THROTTLE_LIMIT = 120;
+
+  @IsString()
+  @IsNotEmpty()
+  METRICS_ENABLED = "true";
+
+  @IsOptional()
+  @IsString()
+  METRICS_TOKEN?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {
@@ -108,6 +116,19 @@ export function validateEnv(config: Record<string, unknown>): EnvironmentVariabl
 
   if (errors.length > 0) {
     throw new Error(errors.toString());
+  }
+
+  if (validated.NODE_ENV === "production") {
+    const insecure: string[] = [];
+    if (validated.JWT_ACCESS_SECRET.length < 32 || validated.JWT_ACCESS_SECRET === "replace-me")
+      insecure.push("JWT_ACCESS_SECRET must contain at least 32 characters");
+    if (validated.JWT_REFRESH_SECRET.length < 32 || validated.JWT_REFRESH_SECRET === "replace-me")
+      insecure.push("JWT_REFRESH_SECRET must contain at least 32 characters");
+    if (validated.CORS_ORIGINS.split(",").some((origin) => origin.trim() === "*"))
+      insecure.push("CORS_ORIGINS must not contain '*' in production");
+    if (validated.METRICS_ENABLED.toLowerCase() !== "false" && !validated.METRICS_TOKEN)
+      insecure.push("METRICS_TOKEN is required when metrics are enabled in production");
+    if (insecure.length > 0) throw new Error(insecure.join("; "));
   }
 
   return validated;

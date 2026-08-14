@@ -19,12 +19,16 @@ export class HealthService {
   }
 
   /** 启动探针：模板中与 live 同语义，可按需扩展初始化就绪条件。 */
-  startup(): { status: string } {
-    return { status: "ok" };
+  startup(): Promise<{ status: string; checks: Record<string, string> }> {
+    return this.checkDependencies();
   }
 
   /** 就绪探针：依赖不可用时返回 503，供 K8s 摘除流量。 */
   async ready(): Promise<{ status: string; checks: Record<string, string> }> {
+    return this.checkDependencies();
+  }
+
+  private async checkDependencies(): Promise<{ status: string; checks: Record<string, string> }> {
     const checks: Record<string, string> = {};
 
     try {

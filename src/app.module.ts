@@ -11,12 +11,16 @@ import { env } from "node:process";
 import { appConfig } from "./config/app.config";
 import { authConfig } from "./config/auth.config";
 import { databaseConfig } from "./config/database.config";
+import { observabilityConfig } from "./config/observability.config";
 import { redisConfig } from "./config/redis.config";
 import { validateEnv } from "./config/env.validation";
 import { IdempotencyInterceptor } from "./common/interceptors/idempotency.interceptor";
 import { ResponseInterceptor } from "./common/interceptors/response.interceptor";
 import { DatabaseModule } from "./database/database.module";
 import { RedisModule } from "./infrastructure/redis/redis.module";
+import { RedisThrottlerStorage } from "./infrastructure/redis/redis-throttler.storage";
+import { HttpMetricsInterceptor } from "./infrastructure/observability/http-metrics.interceptor";
+import { MetricsModule } from "./infrastructure/observability/metrics.module";
 import { AuditModule } from "./modules/audit/audit.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { HealthModule } from "./modules/health/health.module";
@@ -29,15 +33,22 @@ import { UsersModule } from "./modules/users/users.module";
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
-      load: [appConfig, authConfig, databaseConfig, redisConfig],
+      load: [appConfig, authConfig, databaseConfig, redisConfig, observabilityConfig],
       validate: validateEnv
     }),
-    ThrottlerModule.forRoot([
-      {
-        ttl: Number(env.THROTTLE_TTL_SECONDS ?? 60) * 1000,
-        limit: Number(env.THROTTLE_LIMIT ?? 120)
-      }
-    ]),
+    ThrottlerModule.forRootAsync({
+      imports: [RedisModule],
+      inject: [RedisThrottlerStorage],
+      useFactory: (storage: RedisThrottlerStorage) => ({
+        storage,
+        throttlers: [
+          {
+            ttl: Number(env.THROTTLE_TTL_SECONDS ?? 60) * 1000,
+            limit: Number(env.THROTTLE_LIMIT ?? 120)
+          }
+        ]
+      })
+    }),
     LoggerModule.forRoot({
       pinoHttp: {
         level: env.LOG_LEVEL ?? "info",
@@ -60,6 +71,7 @@ import { UsersModule } from "./modules/users/users.module";
     }),
     DatabaseModule,
     RedisModule,
+    MetricsModule,
     SchedulerModule,
     HealthModule,
     AuditModule,
@@ -79,6 +91,10 @@ import { UsersModule } from "./modules/users/users.module";
     {
       provide: APP_INTERCEPTOR,
       useClass: ResponseInterceptor
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: HttpMetricsInterceptor
     }
   ]
 })

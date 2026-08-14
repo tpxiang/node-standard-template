@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
+import { clearInterval, setInterval } from "node:timers";
 import { BusinessException } from "../../common/exceptions/business.exception";
 import { ErrorCode } from "../../common/constants/error-codes";
 import { RedisService } from "./redis.service";
@@ -38,9 +39,26 @@ export class DistributedLockService {
       );
     }
 
+    let renewalError: Error | undefined;
+    const interval = setInterval(
+      () => {
+        void this.renew(handle, ttlSeconds)
+          .then((renewed) => {
+            if (!renewed) renewalError = new Error(`Lock lease lost: ${resource}`);
+          })
+          .catch((error: unknown) => {
+            renewalError = error instanceof Error ? error : new Error(String(error));
+          });
+      },
+      Math.max(1_000, Math.floor((ttlSeconds * 1_000) / 3))
+    );
+    interval.unref();
     try {
-      return await fn();
+      const result = await fn();
+      if (renewalError) throw renewalError;
+      return result;
     } finally {
+      clearInterval(interval);
       await this.release(handle);
     }
   }
