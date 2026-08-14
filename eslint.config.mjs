@@ -26,6 +26,11 @@ export default [
       "@typescript-eslint/consistent-type-imports": "error"
     }
   },
+  {
+    files: ["src/modules/**/*.ts"],
+    rules: {
+      "no-restricted-imports": ["error", { paths: ["node:process"] }]
+    }
+  },
   prettier
 ];
-

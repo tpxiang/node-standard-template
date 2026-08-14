@@ -7,6 +7,7 @@ export const appConfig = registerAs("app", () => ({
   name: env.APP_NAME ?? "enterprise-node-backend",
   port: Number(env.APP_PORT ?? 3000),
   version: env.APP_VERSION ?? "0.1.0",
+  logLevel: env.LOG_LEVEL ?? "info",
   corsOrigins: (env.CORS_ORIGINS ?? "http://localhost:3000")
     .split(",")
     .map((origin) => origin.trim())

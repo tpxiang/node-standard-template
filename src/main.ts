@@ -9,7 +9,6 @@ import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fa
 import helmet from "@fastify/helmet";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { randomUUID } from "node:crypto";
-import { env } from "node:process";
 import { AppModule } from "./app.module";
 import { requestContext } from "./common/context/request-context";
 import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
@@ -57,7 +56,7 @@ async function bootstrap(): Promise<void> {
     });
 
   // 生产环境不暴露 Swagger，降低接口面泄露风险。
-  const nodeEnv = configService.get<string>("NODE_ENV") ?? env.NODE_ENV ?? "development";
+  const nodeEnv = configService.getOrThrow<string>("app.env");
   if (nodeEnv !== "production") {
     const swaggerConfig = new DocumentBuilder()
       .setTitle("Enterprise Node Backend")

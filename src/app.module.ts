@@ -3,11 +3,10 @@
  * ThrottlerGuard 作为全局守卫，接口级可用 @Throttle 覆盖更严策略。
  */
 import { Module } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { LoggerModule } from "nestjs-pino";
-import { env } from "node:process";
 import { appConfig } from "./config/app.config";
 import { authConfig } from "./config/auth.config";
 import { databaseConfig } from "./config/database.config";
@@ -38,36 +37,39 @@ import { UsersModule } from "./modules/users/users.module";
     }),
     ThrottlerModule.forRootAsync({
       imports: [RedisModule],
-      inject: [RedisThrottlerStorage],
-      useFactory: (storage: RedisThrottlerStorage) => ({
+      inject: [RedisThrottlerStorage, ConfigService],
+      useFactory: (storage: RedisThrottlerStorage, config: ConfigService) => ({
         storage,
         throttlers: [
           {
-            ttl: Number(env.THROTTLE_TTL_SECONDS ?? 60) * 1000,
-            limit: Number(env.THROTTLE_LIMIT ?? 120)
+            ttl: config.getOrThrow<number>("app.throttleTtlSeconds") * 1000,
+            limit: config.getOrThrow<number>("app.throttleLimit")
           }
         ]
       })
     }),
-    LoggerModule.forRoot({
-      pinoHttp: {
-        level: env.LOG_LEVEL ?? "info",
-        // 敏感字段脱敏，避免 access/refresh token、密码进入日志。
-        redact: {
-          paths: [
-            "req.headers.authorization",
-            "req.headers.cookie",
-            "res.headers.set-cookie",
-            "password",
-            "accessToken",
-            "refreshToken"
-          ],
-          censor: "[REDACTED]"
-        },
-        customProps: (req) => ({
-          requestId: req.headers["x-request-id"]
-        })
-      }
+    LoggerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        pinoHttp: {
+          level: config.getOrThrow<string>("app.logLevel"),
+          // 敏感字段脱敏，避免 access/refresh token、密码进入日志。
+          redact: {
+            paths: [
+              "req.headers.authorization",
+              "req.headers.cookie",
+              "res.headers.set-cookie",
+              "password",
+              "accessToken",
+              "refreshToken"
+            ],
+            censor: "[REDACTED]"
+          },
+          customProps: (req) => ({
+            requestId: req.headers["x-request-id"]
+          })
+        }
+      })
     }),
     DatabaseModule,
     RedisModule,
