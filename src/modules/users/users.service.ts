@@ -112,7 +112,7 @@ export class UsersService {
     await this.findById(dto.id);
     return this.prisma.user.update({
       where: { id: dto.id },
-      data: { name: dto.name, status: dto.status },
+      data: { name: dto.name },
       select: userPublicSelect
     });
   }

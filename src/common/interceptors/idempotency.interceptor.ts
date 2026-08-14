@@ -4,7 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { clearInterval, setInterval } from "node:timers";
 import { Observable, from, of, throwError } from "rxjs";
 import { catchError, finalize, map, mergeMap } from "rxjs/operators";
-import { getRequestUserId } from "../context/request-context";
+import { getRequestTenantId, getRequestUserId } from "../context/request-context";
 import { ErrorCode } from "../constants/error-codes";
 import { BusinessException } from "../exceptions/business.exception";
 import { RedisService } from "../../infrastructure/redis/redis.service";
@@ -113,8 +113,9 @@ export class IdempotencyInterceptor implements NestInterceptor {
 
   private scopeKey(request: FastifyRequest, key: string): string {
     const userId = getRequestUserId() ?? "anonymous";
+    const tenantId = getRequestTenantId() ?? "no-tenant";
     return createHash("sha256")
-      .update(`${userId}\n${request.method}\n${request.url}\n${key}`)
+      .update(`${tenantId}\n${userId}\n${request.method}\n${request.url}\n${key}`)
       .digest("hex");
   }
 

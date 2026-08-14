@@ -44,7 +44,7 @@ export class AuthTokenService {
     }
 
     const tokenHash = this.hashToken(refreshToken);
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const stored = await tx.refreshToken.findUnique({
         where: { tokenHash },
         include: { user: { include: userAuthInclude } }
@@ -56,11 +56,7 @@ export class AuthTokenService {
           where: { userId: stored.userId, revokedAt: null },
           data: { revokedAt: new Date() }
         });
-        throw new BusinessException(
-          ErrorCode.AUTH_TOKEN_REUSED,
-          "Refresh token reuse detected",
-          401
-        );
+        return { reused: true } as const;
       }
       if (stored.expiresAt < new Date()) {
         throw new BusinessException(ErrorCode.AUTH_TOKEN_EXPIRED, "Refresh token expired", 401);
@@ -77,10 +73,18 @@ export class AuthTokenService {
           where: { userId: stored.userId, revokedAt: null },
           data: { revokedAt: new Date() }
         });
-        throw new BusinessException(ErrorCode.AUTH_TOKEN_REUSED, "Refresh token reuse detected", 401);
+        return { reused: true } as const;
       }
-      return this.issueTokens(tx, this.toAuthUser(stored.user));
+      return {
+        reused: false,
+        tokens: await this.issueTokens(tx, this.toAuthUser(stored.user))
+      } as const;
     });
+    // Throw only after the transaction commits, otherwise the family revocation is rolled back.
+    if (result.reused) {
+      throw new BusinessException(ErrorCode.AUTH_TOKEN_REUSED, "Refresh token reuse detected", 401);
+    }
+    return result.tokens;
   }
 
   async logout(refreshToken: string, accessToken?: string): Promise<{ revoked: boolean }> {

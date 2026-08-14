@@ -1,6 +1,5 @@
-/** 更新用户请求体：id 必填；仅允许改名称与状态（改密应走独立流程）。 */
-import { IsEnum, IsOptional, IsString, MinLength } from "class-validator";
-import { UserStatus } from "@prisma/client";
+/** 更新平台用户资料：租户成员状态应通过独立的成员管理接口修改。 */
+import { IsOptional, IsString, MinLength } from "class-validator";
 
 export class UpdateUserDto {
   @IsString()
@@ -11,8 +10,4 @@ export class UpdateUserDto {
   @IsString()
   @MinLength(1)
   name?: string;
-
-  @IsOptional()
-  @IsEnum(UserStatus)
-  status?: UserStatus;
 }
