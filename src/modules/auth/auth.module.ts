@@ -1,4 +1,3 @@
-/** 认证模块：导出 AuthService 与守卫，供 Users/Roles 等业务模块复用。 */
 import { Module } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtModule } from "@nestjs/jwt";
@@ -8,6 +7,7 @@ import { AuthLoginRateLimitService } from "./auth-login-rate-limit.service";
 import { AuthTokenService } from "./auth-token.service";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { PermissionsGuard } from "./guards/permissions.guard";
+import { TenantGuard } from "./guards/tenant.guard";
 
 @Module({
   imports: [
@@ -24,8 +24,9 @@ import { PermissionsGuard } from "./guards/permissions.guard";
     AuthLoginRateLimitService,
     AuthTokenService,
     JwtAuthGuard,
-    PermissionsGuard
+    PermissionsGuard,
+    TenantGuard
   ],
-  exports: [AuthService, JwtAuthGuard, PermissionsGuard]
+  exports: [AuthService, JwtAuthGuard, TenantGuard, PermissionsGuard]
 })
 export class AuthModule {}

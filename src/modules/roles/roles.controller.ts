@@ -10,16 +10,17 @@ import {
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { Permissions } from "../../common/decorators/permissions.decorator";
-import {
-  ApiIdempotencyKey,
-  ApiStandardContract
-} from "../../common/decorators/api-contract.decorator";
 import { IdQueryDto } from "../../common/dto/id-query.dto";
 import { PaginationDto } from "../../common/dto/pagination.dto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PermissionsGuard } from "../auth/guards/permissions.guard";
+import { TenantGuard } from "../auth/guards/tenant.guard";
 import { AssignRoleDto } from "./dto/assign-role.dto";
 import { RolesService } from "./roles.service";
+import {
+  ApiIdempotencyKey,
+  ApiStandardContract
+} from "../../common/decorators/api-contract.decorator";
 
 /**
  * 入参约定：GET 仅 Query；增删改仅 POST + Body。
@@ -28,7 +29,7 @@ import { RolesService } from "./roles.service";
 @ApiBearerAuth()
 @ApiStandardContract()
 @Controller("roles")
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, TenantGuard, PermissionsGuard)
 export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
 

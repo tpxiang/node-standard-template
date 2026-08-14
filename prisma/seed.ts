@@ -1,13 +1,9 @@
-/**
- * 种子数据：初始化管理员账号、admin 角色及基础权限码。
- * 生产环境务必修改默认密码，并通过密钥系统注入 JWT Secret。
- */
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
-const ADMIN_PERMISSIONS = [
+const PERMISSIONS = [
   { code: "user:read", description: "Read users" },
   { code: "user:write", description: "Create and update users" },
   { code: "role:read", description: "Read roles" },
@@ -16,6 +12,12 @@ const ADMIN_PERMISSIONS = [
 
 async function main(): Promise<void> {
   const passwordHash = await bcrypt.hash("ChangeMe123!", 12);
+
+  const tenant = await prisma.tenant.upsert({
+    where: { id: "tenant_default" },
+    update: { name: "Default Tenant", status: "ACTIVE" },
+    create: { id: "tenant_default", code: "default", name: "Default Tenant" }
+  });
 
   const admin = await prisma.user.upsert({
     where: { email: "admin@example.com" },
@@ -28,22 +30,32 @@ async function main(): Promise<void> {
   });
 
   const adminRole = await prisma.role.upsert({
-    where: { name: "admin" },
+    where: { tenantId_name: { tenantId: tenant.id, name: "admin" } },
     update: {},
     create: {
+      tenantId: tenant.id,
       name: "admin",
       description: "System administrator"
     }
   });
 
-  for (const item of ADMIN_PERMISSIONS) {
+  const member = await prisma.tenantMember.upsert({
+    where: { tenantId_userId: { tenantId: tenant.id, userId: admin.id } },
+    update: { status: "ACTIVE" },
+    create: { tenantId: tenant.id, userId: admin.id }
+  });
+
+  await prisma.tenantMemberRole.upsert({
+    where: { memberId_roleId: { memberId: member.id, roleId: adminRole.id } },
+    update: {},
+    create: { memberId: member.id, roleId: adminRole.id }
+  });
+
+  for (const item of PERMISSIONS) {
     const permission = await prisma.permission.upsert({
       where: { code: item.code },
       update: { description: item.description },
-      create: {
-        code: item.code,
-        description: item.description
-      }
+      create: item
     });
 
     await prisma.rolePermission.upsert({

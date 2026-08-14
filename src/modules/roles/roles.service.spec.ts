@@ -1,9 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BusinessException } from "../../common/exceptions/business.exception";
 import { ErrorCode } from "../../common/constants/error-codes";
 import { RolesService } from "./roles.service";
+import { requestContext } from "../../common/context/request-context";
 
 describe("RolesService", () => {
+  beforeEach(() => requestContext.enterWith({ requestId: "test", tenantId: "tenant_default" }));
   it("lists roles with pagination", async () => {
     const prisma = {
       role: {
@@ -28,9 +30,11 @@ describe("RolesService", () => {
 
   it("assigns a role to a user", async () => {
     const prisma = {
-      user: { findUnique: vi.fn().mockResolvedValue({ id: "user-1" }) },
-      role: { findUnique: vi.fn().mockResolvedValue({ id: "role-1" }) },
-      userRole: { upsert: vi.fn().mockResolvedValue({}) }
+      tenantMember: {
+        findUnique: vi.fn().mockResolvedValue({ id: "member-1", status: "ACTIVE" })
+      },
+      role: { findFirst: vi.fn().mockResolvedValue({ id: "role-1" }) },
+      tenantMemberRole: { upsert: vi.fn().mockResolvedValue({}) }
     };
 
     await expect(new RolesService(prisma as never).assignUser("user-1", "role-1")).resolves.toEqual(
@@ -40,7 +44,7 @@ describe("RolesService", () => {
 
   it("throws when role is missing", async () => {
     const prisma = {
-      role: { findUnique: vi.fn().mockResolvedValue(null) }
+      role: { findFirst: vi.fn().mockResolvedValue(null) }
     };
 
     await expect(new RolesService(prisma as never).findById("missing")).rejects.toMatchObject({

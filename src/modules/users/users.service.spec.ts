@@ -1,9 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Prisma } from "@prisma/client";
 import { ErrorCode } from "../../common/constants/error-codes";
 import { UsersService } from "./users.service";
+import { requestContext } from "../../common/context/request-context";
 
 describe("UsersService.create", () => {
+  beforeEach(() => requestContext.enterWith({ requestId: "test", tenantId: "tenant_default" }));
   it("maps a concurrent unique-email write to a business conflict", async () => {
     const prisma = {
       user: {
@@ -14,8 +16,15 @@ describe("UsersService.create", () => {
             clientVersion: "test"
           })
         )
-      }
+      },
+      $transaction: vi.fn().mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError("duplicate", {
+          code: "P2002",
+          clientVersion: "test"
+        })
+      )
     };
+
     await expect(
       new UsersService(prisma as never).create({
         email: "same@example.com",
@@ -36,7 +45,10 @@ describe("UsersService.create", () => {
       updatedAt: new Date()
     };
     const prisma = {
-      user: { findMany: vi.fn().mockResolvedValue([item]), count: vi.fn().mockResolvedValue(1) }
+      user: {
+        findMany: vi.fn().mockResolvedValue([item]),
+        count: vi.fn().mockResolvedValue(1)
+      }
     };
     const result = await new UsersService(prisma as never).list({
       page: 1,
@@ -61,7 +73,10 @@ describe("UsersService.create", () => {
       updatedAt: new Date()
     };
     const prisma = {
-      user: { findUnique: vi.fn().mockResolvedValue(user), update: vi.fn().mockResolvedValue(user) }
+      user: {
+        findFirst: vi.fn().mockResolvedValue(user),
+        update: vi.fn().mockResolvedValue(user)
+      }
     };
     await expect(
       new UsersService(prisma as never).update({ id: "user-1", name: "Updated" })

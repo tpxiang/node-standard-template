@@ -38,3 +38,9 @@ export function getRequestUserId(): string | undefined {
 export function getRequestTenantId(): string | undefined {
   return requestContext.getStore()?.tenantId;
 }
+
+export function requireRequestTenantId(): string {
+  const tenantId = getRequestTenantId();
+  if (!tenantId) throw new Error("Tenant context is required");
+  return tenantId;
+}
