@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Query,
+  UseGuards
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { Permissions } from "../../common/decorators/permissions.decorator";
 import {
@@ -36,6 +45,7 @@ export class RolesController {
   }
 
   @Post("assign-user")
+  @HttpCode(HttpStatus.OK)
   @ApiIdempotencyKey()
   @Permissions("role:write")
   assignUser(@Body() dto: AssignRoleDto): Promise<{ userId: string; roleId: string }> {

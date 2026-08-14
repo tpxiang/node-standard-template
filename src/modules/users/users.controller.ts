@@ -2,7 +2,16 @@
  * 用户接口。
  * 入参约定：GET 仅 Query；增删改仅 POST + Body；不使用 path / header 业务入参。
  */
-import { Body, Controller, Get, Post, Query, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Query,
+  UseGuards
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { Permissions } from "../../common/decorators/permissions.decorator";
 import {
@@ -38,6 +47,7 @@ export class UsersController {
   }
 
   @Post("create")
+  @HttpCode(HttpStatus.OK)
   @ApiIdempotencyKey()
   @Permissions("user:write")
   create(@Body() dto: CreateUserDto): Promise<{ id: string; email: string; name: string }> {
@@ -45,6 +55,7 @@ export class UsersController {
   }
 
   @Post("update")
+  @HttpCode(HttpStatus.OK)
   @ApiIdempotencyKey()
   @Permissions("user:write")
   update(@Body() dto: UpdateUserDto): Promise<unknown> {

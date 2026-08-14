@@ -11,6 +11,7 @@ import {
   PageResult,
   PaginationDto,
   pageOffset,
+  resolveSortField,
   toPageResult
 } from "../../common/dto/pagination.dto";
 import { PrismaService } from "../../database/prisma.service";
@@ -52,7 +53,7 @@ export class UsersService {
         }
       : {};
 
-    const sortBy = query.sortBy && USER_SORT_FIELDS.has(query.sortBy) ? query.sortBy : "createdAt";
+    const sortBy = resolveSortField(query.sortBy, USER_SORT_FIELDS, "createdAt");
     const { skip, take } = pageOffset(query);
 
     const [items, total] = await Promise.all([

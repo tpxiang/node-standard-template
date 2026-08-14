@@ -6,6 +6,8 @@
  */
 import { Type } from "class-transformer";
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
+import { ErrorCode } from "../constants/error-codes";
+import { BusinessException } from "../exceptions/business.exception";
 
 export class PaginationDto {
   @IsOptional()
@@ -65,4 +67,16 @@ export function pageOffset(query: Pick<PaginationDto, "page" | "pageSize">): {
     skip: (query.page - 1) * query.pageSize,
     take: query.pageSize
   };
+}
+
+export function resolveSortField(
+  requested: string | undefined,
+  allowed: ReadonlySet<string>,
+  fallback: string
+): string {
+  if (!requested) return fallback;
+  if (!allowed.has(requested)) {
+    throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Unsupported sort field", 400);
+  }
+  return requested;
 }
