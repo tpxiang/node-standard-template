@@ -27,6 +27,6 @@ import { TenantGuard } from "./guards/tenant.guard";
     PermissionsGuard,
     TenantGuard
   ],
-  exports: [AuthService, JwtAuthGuard, TenantGuard, PermissionsGuard]
+  exports: [JwtModule, AuthService, JwtAuthGuard, TenantGuard, PermissionsGuard]
 })
 export class AuthModule {}
