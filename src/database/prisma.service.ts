@@ -1,9 +1,16 @@
-/** Prisma 客户端封装：模块启动时连接，销毁时断开。 */
 import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient } from "@prisma/client";
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+  constructor(configService: ConfigService) {
+    super({
+      adapter: new PrismaMariaDb(configService.getOrThrow<string>("database.url"))
+    });
+  }
+
   async onModuleInit(): Promise<void> {
     await this.$connect();
   }

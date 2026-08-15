@@ -9,9 +9,12 @@ import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fa
 import helmet from "@fastify/helmet";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { randomUUID } from "node:crypto";
+import { createRequire } from "node:module";
 import { AppModule } from "./app.module";
 import { requestContext } from "./common/context/request-context";
 import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
+
+const runtimeRequire = createRequire(__filename);
 
 async function bootstrap(): Promise<void> {
   // bufferLogs：在 nestjs-pino 就绪前缓存启动日志，避免丢失上下文。
@@ -58,14 +61,19 @@ async function bootstrap(): Promise<void> {
   // 生产环境不暴露 Swagger，降低接口面泄露风险。
   const nodeEnv = configService.getOrThrow<string>("app.env");
   if (nodeEnv !== "production") {
-    const swaggerConfig = new DocumentBuilder()
-      .setTitle("Enterprise Node Backend")
-      .setDescription("Standard enterprise Node.js backend API")
-      .setVersion(configService.getOrThrow<string>("app.version"))
-      .addBearerAuth()
-      .build();
-    const document = SwaggerModule.createDocument(app, swaggerConfig);
-    SwaggerModule.setup("docs", app, document);
+    try {
+      runtimeRequire("@fastify/static");
+      const swaggerConfig = new DocumentBuilder()
+        .setTitle("Enterprise Node Backend")
+        .setDescription("Standard enterprise Node.js backend API")
+        .setVersion(configService.getOrThrow<string>("app.version"))
+        .addBearerAuth()
+        .build();
+      const document = SwaggerModule.createDocument(app, swaggerConfig);
+      SwaggerModule.setup("docs", app, document);
+    } catch (error) {
+      logger.warn(`Swagger disabled: ${(error as Error).message}`);
+    }
   }
 
   const port = configService.getOrThrow<number>("app.port");
